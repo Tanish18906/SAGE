@@ -1,12 +1,36 @@
 import React, { useState } from 'react'
 import LiveFeed from './components/LiveFeed'
 import ZoneEditor from './components/ZoneEditor'
-import { Shield, Video, MapPin } from 'lucide-react'
+import AlertFeed from './components/AlertFeed'
+import { Shield, Video, MapPin, Bell } from 'lucide-react'
+
+// Generate sample snapshot on a canvas
+function generateMockSnapshotBase64(alertType) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 320
+  canvas.height = 180
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    ctx.fillStyle = '#1e1e1e'
+    ctx.fillRect(0, 0, 320, 180)
+    ctx.strokeStyle = alertType === 'fall' ? '#ef4444' : '#f59e0b'
+    ctx.lineWidth = 2
+    ctx.strokeRect(90, 40, 140, 100)
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '12px monospace'
+    ctx.fillText(`SNAPSHOT: ${alertType.toUpperCase()}`, 10, 20)
+    ctx.fillStyle = '#888888'
+    ctx.font = '10px monospace'
+    ctx.fillText(new Date().toISOString(), 10, 165)
+  }
+  return canvas.toDataURL('image/jpeg')
+}
 
 export default function App() {
   const [mockMode, setMockMode] = useState(true)
   const [activeTab, setActiveTab] = useState('feed') // 'feed' | 'zones'
   const [lastFrameBase64, setLastFrameBase64] = useState(null)
+  const [alerts, setAlerts] = useState([])
 
   const handleFrameUpdate = (frameData) => {
     if (frameData && frameData.image_base64) {
@@ -14,9 +38,42 @@ export default function App() {
     }
   }
 
+  const handleAlertReceived = (alertMsg) => {
+    setAlerts((prev) => [alertMsg, ...prev])
+  }
+
+  const handleSimulateTestAlert = () => {
+    const alertTypes = ['after_hours', 'loitering', 'fall']
+    const chosenType = alertTypes[alerts.length % alertTypes.length]
+    const sampleId = `alert_${Math.random().toString(36).substring(2, 8)}`
+
+    const mockAlert = {
+      type: 'alert',
+      id: sampleId,
+      alert_type: chosenType,
+      zone_id: chosenType === 'fall' ? null : 'hostel_gate',
+      tracked_id: Math.floor(Math.random() * 20) + 1,
+      timestamp: new Date().toISOString(),
+      snapshot_url: generateMockSnapshotBase64(chosenType),
+      narration:
+        chosenType === 'after_hours'
+          ? 'Person detected near the hostel gate for 45s after 9:00 PM — possible unauthorized presence.'
+          : chosenType === 'loitering'
+          ? 'Person remaining stationary inside sensitive walkway zone for 62s exceeding safety threshold.'
+          : 'Sudden high-velocity downward motion followed by sustained low height detected — potential fall injury.',
+      confirmed: true,
+    }
+
+    setAlerts((prev) => [mockAlert, ...prev])
+  }
+
+  const handleClearAlerts = () => {
+    setAlerts([])
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] flex flex-col p-4">
-      {/* Top Header */}
+      {/* Top Navigation Bar */}
       <header className="flex items-center justify-between border-b border-[#2a2a2a] pb-3 mb-4">
         <div className="flex items-center gap-2.5">
           <Shield className="w-5 h-5 text-emerald-400" />
@@ -69,13 +126,26 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col items-center justify-start max-w-5xl w-full mx-auto gap-4">
+      <main className="flex-1 flex flex-col w-full max-w-7xl mx-auto gap-4">
         {activeTab === 'feed' ? (
-          <div className="w-full aspect-video max-w-4xl">
-            <LiveFeed
-              isMockMode={mockMode}
-              onFrameUpdate={handleFrameUpdate}
-            />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
+            {/* Live Feed Panel */}
+            <div className="lg:col-span-2 aspect-video lg:aspect-auto h-full min-h-[420px]">
+              <LiveFeed
+                isMockMode={mockMode}
+                onFrameUpdate={handleFrameUpdate}
+                onAlertReceived={handleAlertReceived}
+              />
+            </div>
+
+            {/* Alert Feed Panel */}
+            <div className="lg:col-span-1 h-full min-h-[420px]">
+              <AlertFeed
+                alerts={alerts}
+                onClear={handleClearAlerts}
+                onSimulateTestAlert={handleSimulateTestAlert}
+              />
+            </div>
           </div>
         ) : (
           <div className="w-full">
