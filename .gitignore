@@ -1,0 +1,30 @@
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.env
+.venv/
+venv/
+ENV/
+
+# Database & Snapshots
+*.db
+*.sqlite3
+backend/snapshots/
+snapshots/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
