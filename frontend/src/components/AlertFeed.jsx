@@ -28,18 +28,6 @@ export default function AlertFeed({
             {alerts.length} ACTIVE
           </span>
 
-          {/* Test Alert Simulator Button */}
-          {onSimulateTestAlert && (
-            <button
-              onClick={onSimulateTestAlert}
-              className="flex items-center gap-1 px-2 py-0.5 bg-[#2b2a2a] hover:bg-[#353434] border border-amber-500/40 text-amber-300 rounded-xs text-[10px] font-mono transition-colors cursor-pointer"
-              title="Inject test alert into stream"
-            >
-              <Sparkles className="w-2.5 h-2.5" />
-              + Test Alert
-            </button>
-          )}
-
           {/* Clear Feed Button */}
           {alerts.length > 0 && onClear && (
             <button

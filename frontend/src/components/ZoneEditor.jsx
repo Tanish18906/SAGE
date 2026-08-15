@@ -6,6 +6,10 @@ import {
   Trash2,
   Clock,
   UserCheck,
+  CheckCircle2,
+  AlertCircle,
+  Eye,
+  X,
 } from 'lucide-react'
 
 // Available rules for zones (per CONTRACT.md - fall is never a zone rule)
@@ -24,10 +28,27 @@ const AVAILABLE_RULES = [
   },
 ]
 
+// Point in polygon test helper for canvas hit testing
+function isPointInPolygon(point, vs) {
+  const x = point[0]
+  const y = point[1]
+  let inside = false
+  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    const xi = vs[i][0]
+    const yi = vs[i][1]
+    const xj = vs[j][0]
+    const yj = vs[j][1]
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
 export default function ZoneEditor({
   currentFrameBase64 = null,
   apiBaseUrl = 'http://localhost:8000',
   onZoneSaved = null,
+  onZoneDeleted = null,
 }) {
   const canvasRef = useRef(null)
   const [capturedFrame, setCapturedFrame] = useState(null)
@@ -35,6 +56,7 @@ export default function ZoneEditor({
   const [zoneName, setZoneName] = useState('')
   const [selectedRules, setSelectedRules] = useState(['after_hours'])
   const [savedZones, setSavedZones] = useState([])
+  const [selectedZoneId, setSelectedZoneId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [statusMessage, setStatusMessage] = useState(null)
 
@@ -46,70 +68,86 @@ export default function ZoneEditor({
   }, [currentFrameBase64, capturedFrame])
 
   // Fetch zones on mount
-  useEffect(() => {
-    let isMounted = true
-    async function fetchZones() {
-      try {
-        setLoading(true)
-        const res = await fetch(`${apiBaseUrl}/api/zones`)
-        if (res.ok && isMounted) {
-          const data = await res.json()
-          setSavedZones(Array.isArray(data) ? data : [])
-        }
-      } catch {
-        // Fallback demo zone
-        if (isMounted) {
-          setSavedZones([
-            {
-              zone_id: 'zone_north_gate',
-              name: 'North Pathway Restricted Zone',
-              polygon: [
-                [120, 520],
-                [480, 360],
-                [840, 420],
-                [1080, 580],
-              ],
-              rules: ['after_hours', 'loitering'],
-            },
-          ])
-        }
-      } finally {
-        if (isMounted) setLoading(false)
+  const fetchZones = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await fetch(`${apiBaseUrl}/api/zones`)
+      if (res.ok) {
+        const data = await res.json()
+        setSavedZones(Array.isArray(data) ? data : [])
       }
-    }
-    fetchZones()
-    return () => {
-      isMounted = false
+    } catch {
+      // Keep existing zones or fallback
+    } finally {
+      setLoading(false)
     }
   }, [apiBaseUrl])
+
+  useEffect(() => {
+    fetchZones()
+  }, [fetchZones])
 
   const renderOverlays = useCallback(
     (ctx) => {
       // 1. Draw previously saved zones
       savedZones.forEach((zone) => {
         if (zone.polygon && zone.polygon.length >= 3) {
+          const isSelected = zone.zone_id === selectedZoneId
+
           ctx.beginPath()
           ctx.moveTo(zone.polygon[0][0], zone.polygon[0][1])
           for (let i = 1; i < zone.polygon.length; i++) {
             ctx.lineTo(zone.polygon[i][0], zone.polygon[i][1])
           }
           ctx.closePath()
-          ctx.fillStyle = 'rgba(255, 180, 171, 0.12)'
-          ctx.fill()
-          ctx.strokeStyle = '#ffb4ab'
-          ctx.lineWidth = 1.5
-          ctx.setLineDash([4, 4])
-          ctx.stroke()
-          ctx.setLineDash([])
 
-          // Label
-          ctx.fillStyle = '#ffb4ab'
-          ctx.font = 'bold 11px "JetBrains Mono", monospace'
-          ctx.fillText(
-            `ZONE: ${zone.name || zone.zone_id}`,
-            zone.polygon[0][0] + 6,
-            zone.polygon[0][1] - 8
-          )
+          if (isSelected) {
+            // Highlighted selected zone style
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.28)'
+            ctx.fill()
+            ctx.strokeStyle = '#f59e0b'
+            ctx.lineWidth = 2.5
+            ctx.setLineDash([])
+            ctx.stroke()
+
+            // Draw vertex points for selected zone
+            zone.polygon.forEach(([x, y]) => {
+              ctx.beginPath()
+              ctx.arc(x, y, 4, 0, 2 * Math.PI)
+              ctx.fillStyle = '#f59e0b'
+              ctx.fill()
+              ctx.strokeStyle = '#ffffff'
+              ctx.lineWidth = 1.5
+              ctx.stroke()
+            })
+
+            // Prominent selection badge
+            ctx.fillStyle = '#f59e0b'
+            ctx.font = 'bold 12px "JetBrains Mono", monospace'
+            ctx.fillText(
+              `★ SELECTED: ${zone.name || zone.zone_id}`,
+              zone.polygon[0][0] + 8,
+              zone.polygon[0][1] - 10
+            )
+          } else {
+            // Normal subtle zone style
+            ctx.fillStyle = 'rgba(255, 180, 171, 0.12)'
+            ctx.fill()
+            ctx.strokeStyle = '#ffb4ab'
+            ctx.lineWidth = 1.5
+            ctx.setLineDash([4, 4])
+            ctx.stroke()
+            ctx.setLineDash([])
+
+            // Label
+            ctx.fillStyle = '#ffb4ab'
+            ctx.font = 'bold 11px "JetBrains Mono", monospace'
+            ctx.fillText(
+              `ZONE: ${zone.name || zone.zone_id}`,
+              zone.polygon[0][0] + 6,
+              zone.polygon[0][1] - 8
+            )
+          }
         }
       })
 
@@ -123,11 +161,11 @@ export default function ZoneEditor({
 
         if (points.length >= 3) {
           ctx.closePath()
-          ctx.fillStyle = 'rgba(245, 158, 11, 0.2)'
+          ctx.fillStyle = 'rgba(16, 185, 129, 0.2)'
           ctx.fill()
         }
 
-        ctx.strokeStyle = '#f59e0b'
+        ctx.strokeStyle = '#10b981'
         ctx.lineWidth = 2
         ctx.setLineDash([4, 4])
         ctx.stroke()
@@ -136,8 +174,8 @@ export default function ZoneEditor({
         // Draw point handles
         points.forEach(([x, y], idx) => {
           ctx.beginPath()
-          ctx.arc(x, y, 4.5, 0, 2 * Math.PI)
-          ctx.fillStyle = idx === 0 ? '#10b981' : '#f59e0b'
+          ctx.arc(x, y, 5, 0, 2 * Math.PI)
+          ctx.fillStyle = idx === 0 ? '#10b981' : '#34d399'
           ctx.fill()
           ctx.strokeStyle = '#ffffff'
           ctx.lineWidth = 1.5
@@ -145,7 +183,7 @@ export default function ZoneEditor({
         })
       }
     },
-    [savedZones, points]
+    [savedZones, selectedZoneId, points]
   )
 
   const drawCanvas = useCallback(() => {
@@ -230,6 +268,18 @@ export default function ZoneEditor({
     const x = Math.round((e.clientX - rect.left) * scaleX)
     const y = Math.round((e.clientY - rect.top) * scaleY)
 
+    // If not drawing a new polygon, clicking can select a saved zone
+    if (points.length === 0) {
+      const clickedZone = savedZones.find(
+        (z) => z.polygon && z.polygon.length >= 3 && isPointInPolygon([x, y], z.polygon)
+      )
+      if (clickedZone) {
+        setSelectedZoneId((prev) => (prev === clickedZone.zone_id ? null : clickedZone.zone_id))
+        return
+      }
+    }
+
+    // Otherwise add vertex point
     setPoints((prev) => [...prev, [x, y]])
   }
 
@@ -279,6 +329,7 @@ export default function ZoneEditor({
       if (res.ok) {
         const saved = await res.json()
         setSavedZones((prev) => [...prev, saved])
+        setSelectedZoneId(saved.zone_id)
         setPoints([])
         setZoneName('')
         setStatusMessage({
@@ -287,36 +338,70 @@ export default function ZoneEditor({
         })
         if (onZoneSaved) onZoneSaved(saved)
       } else {
-        const mockSaved = {
-          zone_id: `zone_${Date.now()}`,
-          ...payload,
-        }
-        setSavedZones((prev) => [...prev, mockSaved])
-        setPoints([])
-        setZoneName('')
         setStatusMessage({
-          type: 'success',
-          text: `Zone "${payload.name}" saved in local preview mode.`,
+          type: 'error',
+          text: `Failed to save zone "${payload.name}" to server.`,
         })
-        if (onZoneSaved) onZoneSaved(mockSaved)
       }
     } catch {
-      const mockSaved = {
-        zone_id: `zone_${Date.now()}`,
-        ...payload,
-      }
-      setSavedZones((prev) => [...prev, mockSaved])
-      setPoints([])
-      setZoneName('')
       setStatusMessage({
-        type: 'success',
-        text: `Zone "${payload.name}" saved locally.`,
+        type: 'error',
+        text: `Network error: Could not reach backend server at ${apiBaseUrl}.`,
       })
-      if (onZoneSaved) onZoneSaved(mockSaved)
     } finally {
       setLoading(false)
     }
   }
+
+  // Delete a calibrated zone
+  const handleDeleteZone = async (zoneId) => {
+    const targetZone = savedZones.find((z) => z.zone_id === zoneId)
+    const targetName = targetZone?.name || zoneId
+
+    try {
+      setLoading(true)
+      const res = await fetch(`${apiBaseUrl}/api/zones/${zoneId}`, {
+        method: 'DELETE',
+      })
+
+      if (res.ok || res.status === 404) {
+        setSavedZones((prev) => prev.filter((z) => z.zone_id !== zoneId))
+        if (selectedZoneId === zoneId) {
+          setSelectedZoneId(null)
+        }
+        setStatusMessage({
+          type: 'success',
+          text: `Zone "${targetName}" deleted successfully.`,
+        })
+        if (onZoneDeleted) onZoneDeleted(zoneId)
+      } else {
+        // Optimistic local deletion fallback
+        setSavedZones((prev) => prev.filter((z) => z.zone_id !== zoneId))
+        if (selectedZoneId === zoneId) {
+          setSelectedZoneId(null)
+        }
+        setStatusMessage({
+          type: 'success',
+          text: `Zone "${targetName}" removed.`,
+        })
+        if (onZoneDeleted) onZoneDeleted(zoneId)
+      }
+    } catch {
+      setSavedZones((prev) => prev.filter((z) => z.zone_id !== zoneId))
+      if (selectedZoneId === zoneId) {
+        setSelectedZoneId(null)
+      }
+      setStatusMessage({
+        type: 'success',
+        text: `Zone "${targetName}" removed locally.`,
+      })
+      if (onZoneDeleted) onZoneDeleted(zoneId)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const selectedZone = savedZones.find((z) => z.zone_id === selectedZoneId)
 
   return (
     <div className="bg-[#1c1b1b] border border-[#46464a] rounded p-5 shadow-2xl flex flex-col gap-5 text-[#e5e2e1]">
@@ -371,8 +456,17 @@ export default function ZoneEditor({
 
           <div className="flex items-center justify-between text-xs font-mono text-[#919094]">
             <span>
-              Plotted Vertices: <strong className="text-white">{points.length}</strong> (Minimum 3
-              needed)
+              {points.length > 0 ? (
+                <>
+                  Plotted Vertices: <strong className="text-white">{points.length}</strong> (Min 3 needed)
+                </>
+              ) : selectedZone ? (
+                <span className="text-amber-300">
+                  Click on canvas or list to select zones. Currently selected: <strong className="text-white">{selectedZone.name || selectedZone.zone_id}</strong>
+                </span>
+              ) : (
+                'Click canvas to plot vertices or click existing zones to select'
+              )}
             </span>
             <div className="flex gap-2">
               <button
@@ -393,89 +487,197 @@ export default function ZoneEditor({
           </div>
         </div>
 
-        {/* Right: Zone Config Form (4 cols) */}
+        {/* Right: Zone Config & Management Panel (4 cols) */}
         <div className="lg:col-span-4 bg-[#201f1f] border border-[#46464a] rounded p-4 flex flex-col gap-4">
-          <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#e5e2e1]">
-            Define Restricted Zone
-          </h3>
+          
+          {/* Selected Zone Quick Action Card */}
+          {selectedZone && (
+            <div className="p-3 bg-amber-950/40 border border-amber-500/40 rounded-md flex flex-col gap-2 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400">
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>SELECTED ZONE</span>
+                </div>
+                <button
+                  onClick={() => setSelectedZoneId(null)}
+                  className="text-neutral-400 hover:text-white text-[11px] font-mono cursor-pointer"
+                  title="Deselect Zone"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
-          <form onSubmit={handleSaveZone} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-xs font-mono text-[#c7c6ca] mb-1">
-                Zone Identifier / Name
-              </label>
-              <input
-                type="text"
-                value={zoneName}
-                onChange={(e) => setZoneName(e.target.value)}
-                placeholder="e.g. North_Pathway_01"
-                className="w-full bg-[#141313] border border-[#46464a] rounded px-3 py-1.5 text-xs text-[#e5e2e1] font-mono focus:border-amber-400 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-mono text-[#c7c6ca] mb-1">
-                Active Detection Rules
-              </label>
-              <div className="flex flex-col gap-2">
-                {AVAILABLE_RULES.map((rule) => {
-                  const Icon = rule.icon
-                  const isChecked = selectedRules.includes(rule.id)
-                  return (
-                    <div
-                      key={rule.id}
-                      onClick={() => toggleRule(rule.id)}
-                      className={`p-2.5 rounded border cursor-pointer transition-all flex items-start gap-2.5 ${
-                        isChecked
-                          ? 'bg-[#353434] border-amber-500/50 text-[#e5e2e1]'
-                          : 'bg-[#141313] border-[#46464a]/50 text-[#919094] hover:border-[#46464a]'
-                      }`}
+              <div className="text-xs font-mono">
+                <div className="font-semibold text-white text-sm">{selectedZone.name || selectedZone.zone_id}</div>
+                <div className="text-[10px] text-[#919094] mt-0.5 font-mono">ID: {selectedZone.zone_id} &bull; {selectedZone.polygon?.length || 0} vertices</div>
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {(selectedZone.rules || []).map((r) => (
+                    <span
+                      key={r}
+                      className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-mono uppercase"
                     >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {}}
-                        className="mt-0.5 accent-amber-400"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-1.5 text-xs font-mono font-semibold">
-                          <Icon className="w-3.5 h-3.5 text-amber-400" />
-                          {rule.label}
-                        </div>
-                        <p className="text-[10px] text-[#919094] mt-0.5">{rule.description}</p>
-                      </div>
-                    </div>
-                  )
-                })}
+                      {r.replace('_', ' ')}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-1 pt-2 border-t border-amber-500/20">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteZone(selectedZone.zone_id)}
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-500/50 text-red-200 font-mono text-xs font-bold rounded transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  Delete Zone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedZoneId(null)}
+                  className="px-3 py-1.5 bg-[#2b2a2a] hover:bg-[#353434] border border-[#46464a] text-[#c7c6ca] font-mono text-xs rounded transition-colors cursor-pointer"
+                >
+                  Deselect
+                </button>
               </div>
             </div>
+          )}
 
-            <button
-              type="submit"
-              disabled={loading || points.length < 3 || !zoneName.trim()}
-              className="w-full py-2 bg-[#c8c6c7] hover:bg-white text-[#313031] disabled:opacity-40 font-mono font-bold text-xs uppercase tracking-wider rounded transition-colors shadow-lg cursor-pointer"
-            >
-              {loading ? 'Saving Polygon...' : 'Save Zone Polygon'}
-            </button>
-          </form>
+          {/* Form to Plot / Define Zone */}
+          <div>
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#e5e2e1] mb-3">
+              Define New Restricted Zone
+            </h3>
 
-          {/* Saved Zones List */}
-          <div className="border-t border-[#46464a] pt-3 mt-2">
-            <h4 className="text-[11px] font-mono text-[#c7c6ca] uppercase mb-2">
-              Saved Calibrated Zones ({savedZones.length})
-            </h4>
-            <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
-              {savedZones.map((z, idx) => (
-                <div
-                  key={z.zone_id || idx}
-                  className="p-2 bg-[#141313] border border-[#353434] rounded text-xs font-mono flex items-center justify-between"
-                >
-                  <span className="text-amber-400 font-semibold">{z.name || z.zone_id}</span>
-                  <span className="text-[10px] text-[#919094]">
-                    {z.polygon ? `${z.polygon.length} pts` : ''}
-                  </span>
+            <form onSubmit={handleSaveZone} className="flex flex-col gap-3.5">
+              <div>
+                <label className="block text-xs font-mono text-[#c7c6ca] mb-1">
+                  Zone Identifier / Name
+                </label>
+                <input
+                  type="text"
+                  value={zoneName}
+                  onChange={(e) => setZoneName(e.target.value)}
+                  placeholder="e.g. North_Pathway_01"
+                  className="w-full bg-[#141313] border border-[#46464a] rounded px-3 py-1.5 text-xs text-[#e5e2e1] font-mono focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-[#c7c6ca] mb-1">
+                  Active Detection Rules
+                </label>
+                <div className="flex flex-col gap-2">
+                  {AVAILABLE_RULES.map((rule) => {
+                    const Icon = rule.icon
+                    const isChecked = selectedRules.includes(rule.id)
+                    return (
+                      <div
+                        key={rule.id}
+                        onClick={() => toggleRule(rule.id)}
+                        className={`p-2.5 rounded border cursor-pointer transition-all flex items-start gap-2.5 ${
+                          isChecked
+                            ? 'bg-[#353434] border-amber-500/50 text-[#e5e2e1]'
+                            : 'bg-[#141313] border-[#46464a]/50 text-[#919094] hover:border-[#46464a]'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          className="mt-0.5 accent-amber-400"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5 text-xs font-mono font-semibold">
+                            <Icon className="w-3.5 h-3.5 text-amber-400" />
+                            {rule.label}
+                          </div>
+                          <p className="text-[10px] text-[#919094] mt-0.5">{rule.description}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || points.length < 3 || !zoneName.trim()}
+                className="w-full py-2 bg-[#c8c6c7] hover:bg-white text-[#313031] disabled:opacity-40 font-mono font-bold text-xs uppercase tracking-wider rounded transition-colors shadow-lg cursor-pointer"
+              >
+                {loading ? 'Saving Polygon...' : 'Save Zone Polygon'}
+              </button>
+            </form>
+          </div>
+
+          {/* Saved Zones List with Select & Delete */}
+          <div className="border-t border-[#46464a] pt-3 mt-1">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-[11px] font-mono text-[#c7c6ca] uppercase">
+                Calibrated Zones ({savedZones.length})
+              </h4>
+              <span className="text-[10px] font-mono text-[#919094]">Click to choose</span>
+            </div>
+
+            <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+              {savedZones.length === 0 ? (
+                <div className="p-3 text-center text-xs font-mono text-[#777777] bg-[#141313] rounded border border-[#2b2a2a]">
+                  No calibrated zones yet. Draw and save one above.
+                </div>
+              ) : (
+                savedZones.map((z, idx) => {
+                  const isSelected = z.zone_id === selectedZoneId
+                  return (
+                    <div
+                      key={z.zone_id || idx}
+                      onClick={() =>
+                        setSelectedZoneId((prev) => (prev === z.zone_id ? null : z.zone_id))
+                      }
+                      className={`p-2.5 rounded text-xs font-mono flex items-center justify-between cursor-pointer transition-all border ${
+                        isSelected
+                          ? 'bg-amber-950/50 border-amber-500/60 shadow-sm'
+                          : 'bg-[#141313] border-[#353434] hover:border-[#46464a]'
+                      }`}
+                    >
+                      <div className="flex flex-col flex-1 min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`font-semibold truncate ${
+                              isSelected ? 'text-amber-300' : 'text-[#e5e2e1]'
+                            }`}
+                          >
+                            {z.name || z.zone_id}
+                          </span>
+                          {isSelected && (
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/30 text-amber-200 uppercase font-mono">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-[#919094] mt-0.5">
+                          <span>{z.polygon ? `${z.polygon.length} pts` : ''}</span>
+                          <span>&bull;</span>
+                          <span>{(z.rules || []).join(', ')}</span>
+                        </div>
+                      </div>
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteZone(z.zone_id)
+                        }}
+                        disabled={loading}
+                        className="p-1.5 text-[#919094] hover:text-red-400 hover:bg-red-950/40 rounded transition-colors cursor-pointer shrink-0"
+                        title={`Delete zone "${z.name || z.zone_id}"`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>

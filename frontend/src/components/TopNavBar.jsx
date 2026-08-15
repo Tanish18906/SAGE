@@ -93,19 +93,11 @@ export default function TopNavBar({
 
         <div className="h-4 w-px bg-[#46464a]" />
 
-        {/* Mock Mode Switcher */}
-        <button
-          onClick={onToggleMockMode}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-mono border transition-all cursor-pointer ${
-            isMockMode
-              ? 'bg-amber-950/60 text-amber-300 border-amber-500/40 hover:bg-amber-900/60'
-              : 'bg-[#353434] text-[#c7c6ca] border-[#46464a] hover:text-white'
-          }`}
-          title="Toggle between Simulated Edge Stream and Live Backend WebSocket"
-        >
-          <Radio className="w-3 h-3 text-amber-400" />
-          <span>{isMockMode ? 'MOCK: ACTIVE' : 'WS: LIVE'}</span>
-        </button>
+        {/* Live Stream Telemetry Badge */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-mono bg-[#2b2a2a] text-emerald-400 border border-emerald-500/30">
+          <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+          <span>EDGE WS STREAM</span>
+        </div>
       </div>
     </header>
   )

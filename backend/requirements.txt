@@ -7,3 +7,4 @@ opencv-python
 openai
 python-dotenv
 websockets
+setuptools<70

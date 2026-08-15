@@ -1,0 +1,52 @@
+[
+  {
+    "zone_id": "gate",
+    "name": "gate",
+    "polygon": [
+      [
+        456,
+        214
+      ],
+      [
+        654,
+        212
+      ],
+      [
+        643,
+        624
+      ],
+      [
+        374,
+        612
+      ]
+    ],
+    "rules": [
+      "after_hours"
+    ]
+  },
+  {
+    "zone_id": "chemistry_lab_entrance",
+    "name": "Chemistry Lab Entrance",
+    "polygon": [
+      [
+        50,
+        50
+      ],
+      [
+        250,
+        50
+      ],
+      [
+        250,
+        300
+      ],
+      [
+        50,
+        300
+      ]
+    ],
+    "rules": [
+      "after_hours"
+    ]
+  }
+]

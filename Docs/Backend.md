@@ -8,10 +8,23 @@
 
 ### Backend Progress Tracker:
 - [x] **Phase 0**: Dependencies installed, `.env` template set up, empty FastAPI `/health` route verified.
-- [ ] **Phase 1, Step 1-3 [Agent A - Claude]**: Camera capture loop, YOLOv8 inference, DeepSORT persistent tracking in `backend/detection/detector.py`.
-- [ ] **Phase 1, Step 4-5 [Agent B - Antigravity]**: FastAPI WebSocket `/ws/stream` & Zone storage REST endpoints (`POST /api/zones`, `GET /api/zones`) in `backend/main.py`.
-- [ ] **Phase 1, Step 6-8 [Agent A - Claude]**: Zone check logic & after-hours time-check rule in `backend/detection/rules.py` producing `Alert` dict.
-- [ ] **Phase 1, Step 9-12 [Agent B - Antigravity]**: Shared queue consumer, SQLite persistence, GPT-4o narration in `backend/llm/narrate.py`, alert/frame broadcast & `GET /api/alerts`.
+- [ ] **Phase 1, Step 1-3 [Agent A - Claude]**:
+  - [x] Step 1: Camera capture loop in `backend/detection/detector.py` (verified ~15fps, shape=(480, 640, 3)).
+  - [x] Step 2: YOLOv8 inference & bounding boxes on detected people (verified on frames, confidence logging).
+  - [x] Step 3: DeepSORT persistent tracking IDs across frames (verified persistent IDs over 250+ frames).
+- [ ] **Phase 1, Step 4-5 [Agent B - Antigravity]**:
+  - [x] Step 4: FastAPI WebSocket `/ws/stream` with frame/status messages matching `CONTRACT.md`.
+  - [x] Step 5: Zone storage REST endpoints (`POST /api/zones`, `GET /api/zones`) with disk persistence & in-memory accessor.
+- [ ] **Phase 1, Step 6-8 [Agent A - Claude]**:
+  - [x] Step 6: Standalone zone-check function `is_person_in_zone` in `backend/detection/rules.py` (7/7 tests passed).
+  - [x] Step 7: Wire zone-check into live detection loop with `get_active_zones()` (verified live zone boundary checks).
+  - [x] Step 8: After-hours time-check rule producing internal `Alert` dict (verified in rules.py and live loop).
+- [ ] **Phase 1, Step 9-12 [Agent B - Antigravity]**:
+  - [x] Step 9: Shared queue handoff (`push_alert`, `pop_alert_nowait`, `push_frame`, `get_latest_frame_data`).
+  - [x] Step 10: Snapshot saving, SQLite persistence, and GPT-4o narration (`llm/narrate.py`).
+  - [x] Step 11: WebSocket alert broadcast & real annotated frame stream (verified with live client).
+  - [x] Step 12: `GET /api/alerts` endpoint matching `CONTRACT.md` Section 5 (verified newest-first SQLite query & filters).
+
 
 
 ---
