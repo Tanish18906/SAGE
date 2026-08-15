@@ -1,5 +1,15 @@
-import React, { useState, useEffect } from 'react'
-import { History, RefreshCw, Filter, Clock, UserCheck, AlertOctagon, Maximize2, X } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import {
+  History,
+  RefreshCw,
+  Filter,
+  Clock,
+  UserCheck,
+  AlertOctagon,
+  FileText,
+  CheckCircle2,
+} from 'lucide-react'
+import SnapshotModal from './SnapshotModal'
 
 export default function IncidentHistory({
   apiBaseUrl = 'http://localhost:8000',
@@ -7,10 +17,10 @@ export default function IncidentHistory({
 }) {
   const [historyAlerts, setHistoryAlerts] = useState([])
   const [loading, setLoading] = useState(false)
-  const [selectedFilter, setSelectedFilter] = useState('all') // 'all' | 'after_hours' | 'loitering' | 'fall'
+  const [selectedFilter, setSelectedFilter] = useState('all')
   const [selectedSnapshot, setSelectedSnapshot] = useState(null)
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       setLoading(true)
       const res = await fetch(`${apiBaseUrl}/api/alerts`)
@@ -18,19 +28,18 @@ export default function IncidentHistory({
         const data = await res.json()
         setHistoryAlerts(Array.isArray(data) ? data : [])
       } else {
-        // Use local alerts as fallback if backend history not yet populated
         setHistoryAlerts(localAlerts)
       }
-    } catch (e) {
+    } catch {
       setHistoryAlerts(localAlerts)
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiBaseUrl, localAlerts])
 
   useEffect(() => {
     fetchHistory()
-  }, [apiBaseUrl, localAlerts])
+  }, [fetchHistory])
 
   const filteredList = historyAlerts.filter((a) => {
     if (selectedFilter === 'all') return true
@@ -38,37 +47,39 @@ export default function IncidentHistory({
   })
 
   return (
-    <div className="bg-[#121212] border border-[#2a2a2a] rounded-lg p-5 flex flex-col gap-4 text-[#e5e5e5] shadow-2xl">
+    <div className="bg-[#1c1b1b] border border-[#46464a] rounded p-5 flex flex-col gap-4 text-[#e5e2e1] shadow-2xl">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#2a2a2a] pb-3">
+      <div className="flex items-center justify-between border-b border-[#46464a] pb-3">
         <div className="flex items-center gap-2">
-          <History className="w-5 h-5 text-cyan-400" />
-          <h2 className="text-sm font-bold tracking-wide uppercase">Incident History Log (SQLite)</h2>
-          <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#1a1a1a] text-[#888888] border border-[#333]">
-            {filteredList.length} records
+          <History className="w-5 h-5 text-[#c8c6c7]" />
+          <h2 className="text-sm font-mono font-bold tracking-wide uppercase">
+            Incident History Audit Log // SQLite Storage
+          </h2>
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#353434] text-[#c7c6ca] border border-[#46464a]">
+            {filteredList.length} Records
           </span>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Filter dropdown */}
           <div className="flex items-center gap-1.5 text-xs font-mono">
-            <Filter className="w-3.5 h-3.5 text-[#888888]" />
+            <Filter className="w-3.5 h-3.5 text-[#919094]" />
             <select
               value={selectedFilter}
               onChange={(e) => setSelectedFilter(e.target.value)}
-              className="bg-[#1a1a1a] border border-[#333] text-[#e5e5e5] rounded px-2 py-1 text-xs outline-none"
+              className="bg-[#141313] border border-[#46464a] text-[#e5e2e1] rounded px-2 py-1 text-xs outline-none cursor-pointer"
             >
-              <option value="all">All Alerts</option>
-              <option value="after_hours">After-Hours</option>
-              <option value="loitering">Loitering</option>
-              <option value="fall">Fall / Distress</option>
+              <option value="all">All Incident Types</option>
+              <option value="after_hours">After-Hours Curfew</option>
+              <option value="loitering">Loitering Threshold</option>
+              <option value="fall">Fall / Distress (Critical)</option>
             </select>
           </div>
 
           <button
             onClick={fetchHistory}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1 bg-[#1a1a1a] hover:bg-[#222222] border border-[#333] rounded text-xs font-mono transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1 bg-[#2b2a2a] hover:bg-[#353434] border border-[#46464a] rounded text-xs font-mono transition-colors cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -76,87 +87,105 @@ export default function IncidentHistory({
         </div>
       </div>
 
-      {/* History Table / Cards */}
-      <div className="overflow-x-auto">
+      {/* History Table */}
+      <div className="overflow-x-auto border border-[#353434] rounded">
         {filteredList.length === 0 ? (
-          <div className="text-center py-12 text-[#666666] font-mono text-xs">
-            No incident records stored in database yet.
+          <div className="text-center py-14 text-[#919094] font-mono text-xs">
+            <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            No incidents recorded in database. System active.
           </div>
         ) : (
-          <table className="w-full text-left text-xs border-collapse font-sans">
+          <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-[#2a2a2a] text-[#888888] font-mono text-[11px] uppercase">
-                <th className="py-2.5 px-3">Snapshot</th>
-                <th className="py-2.5 px-3">Type</th>
-                <th className="py-2.5 px-3">Narration</th>
+              <tr className="bg-[#201f1f] border-b border-[#46464a] text-[#c7c6ca] font-mono text-[11px] uppercase">
+                <th className="py-2.5 px-3">Evidence</th>
+                <th className="py-2.5 px-3">Severity & Type</th>
+                <th className="py-2.5 px-3">AI Narration</th>
                 <th className="py-2.5 px-3">Zone / Target</th>
-                <th className="py-2.5 px-3">Timestamp</th>
-                <th className="py-2.5 px-3 text-right">Status</th>
+                <th className="py-2.5 px-3">Timestamp (UTC)</th>
+                <th className="py-2.5 px-3 text-right">Confirmation</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1e1e1e]">
+            <tbody className="divide-y divide-[#2b2a2a] bg-[#141313]">
               {filteredList.map((item) => {
                 const isFall = item.alert_type === 'fall'
                 const isAfterHours = item.alert_type === 'after_hours'
+
                 let snapshotSrc = null
                 if (item.snapshot_url) {
-                  snapshotSrc = item.snapshot_url.startsWith('http') || item.snapshot_url.startsWith('data:')
-                    ? item.snapshot_url
-                    : `${apiBaseUrl}${item.snapshot_url}`
+                  if (item.snapshot_url.startsWith('http') || item.snapshot_url.startsWith('data:')) {
+                    snapshotSrc = item.snapshot_url
+                  } else {
+                    snapshotSrc = `${apiBaseUrl}${item.snapshot_url}`
+                  }
                 }
 
                 return (
-                  <tr key={item.id} className="hover:bg-[#181818] transition-colors">
-                    <td className="py-2.5 px-3">
+                  <tr key={item.id} className="hover:bg-[#1c1b1b] transition-colors">
+                    {/* Snapshot Thumbnail */}
+                    <td className="py-2 px-3">
                       {snapshotSrc ? (
                         <div
                           onClick={() => setSelectedSnapshot(snapshotSrc)}
-                          className="relative group cursor-pointer w-14 h-10 rounded overflow-hidden border border-[#333] bg-black"
+                          className="w-12 h-9 bg-black border border-[#46464a] rounded-xs overflow-hidden cursor-pointer group"
                         >
-                          <img src={snapshotSrc} alt="Evidence" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center">
-                            <Maximize2 className="w-3 h-3 text-white" />
-                          </div>
+                          <img
+                            src={snapshotSrc}
+                            alt="Incident thumb"
+                            className="w-full h-full object-cover grayscale group-hover:scale-110 transition-transform"
+                          />
                         </div>
                       ) : (
-                        <div className="w-14 h-10 rounded bg-[#1e1e1e] border border-[#333] flex items-center justify-center text-[9px] text-[#666]">
-                          N/A
-                        </div>
+                        <span className="text-[#919094] font-mono text-[10px]">NO_IMG</span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-semibold ${
-                          isFall
-                            ? 'bg-red-950/80 text-red-400 border border-red-500/40'
-                            : isAfterHours
-                            ? 'bg-amber-950/80 text-amber-400 border border-amber-500/40'
-                            : 'bg-orange-950/80 text-orange-400 border border-orange-500/40'
-                        }`}
-                      >
-                        {isFall ? (
-                          <AlertOctagon className="w-3 h-3" />
-                        ) : isAfterHours ? (
-                          <Clock className="w-3 h-3" />
-                        ) : (
-                          <UserCheck className="w-3 h-3" />
-                        )}
-                        {item.alert_type}
-                      </span>
+
+                    {/* Alert Type */}
+                    <td className="py-2 px-3">
+                      {isFall ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs text-[10px] font-mono font-bold bg-[#ff3b30]/15 text-[#ffb4ab] border border-[#ff3b30]/40">
+                          <AlertOctagon className="w-3 h-3 text-[#ff3b30]" />
+                          CRITICAL // FALL
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs text-[10px] font-mono font-semibold bg-yellow-600/15 text-yellow-500 border border-yellow-600/30">
+                          {isAfterHours ? (
+                            <Clock className="w-3 h-3 text-yellow-500" />
+                          ) : (
+                            <UserCheck className="w-3 h-3 text-yellow-500" />
+                          )}
+                          WARNING // {isAfterHours ? 'AFTER_HOURS' : 'LOITERING'}
+                        </span>
+                      )}
                     </td>
-                    <td className="py-2.5 px-3 max-w-md text-[#d5d5d5] leading-snug">
-                      {item.narration}
+
+                    {/* AI Narration */}
+                    <td className="py-2 px-3 font-sans text-xs text-[#e5e2e1] max-w-sm">
+                      {item.narration || 'Verified incident logged.'}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-[11px] text-[#aaaaaa]">
-                      <div>{item.zone_id ? `Zone: ${item.zone_id}` : 'Global Zone'}</div>
-                      <div className="text-[#666666]">ID: #{item.tracked_id ?? 'N/A'}</div>
+
+                    {/* Zone & Target ID */}
+                    <td className="py-2 px-3 font-mono text-[11px] text-[#c7c6ca]">
+                      <div>
+                        Zone:{' '}
+                        <span className="text-amber-400 font-semibold">
+                          {item.zone_id || 'Global (Fall)'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-[#919094]">
+                        Tracked ID: #{item.tracked_id ?? 'N/A'}
+                      </div>
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-[11px] text-[#888888] whitespace-nowrap">
+
+                    {/* Timestamp */}
+                    <td className="py-2 px-3 font-mono text-[11px] text-[#c7c6ca]">
                       {item.timestamp ? new Date(item.timestamp).toLocaleString() : '--'}
                     </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <span className="text-[10px] font-mono px-2 py-0.5 bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 rounded uppercase font-semibold">
-                        Logged
+
+                    {/* Confirmation Status */}
+                    <td className="py-2 px-3 text-right">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-emerald-400">
+                        <CheckCircle2 className="w-3 h-3" /> CONFIRMED
                       </span>
                     </td>
                   </tr>
@@ -167,32 +196,12 @@ export default function IncidentHistory({
         )}
       </div>
 
-      {/* Snapshot Modal */}
+      {/* Snapshot Preview Modal */}
       {selectedSnapshot && (
-        <div
-          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
-          onClick={() => setSelectedSnapshot(null)}
-        >
-          <div
-            className="relative bg-[#141414] border border-[#333] rounded-lg max-w-2xl w-full p-2 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-2 border-b border-[#2a2a2a] mb-2 text-xs font-mono text-[#888888]">
-              <span>Evidence Snapshot Frame</span>
-              <button
-                onClick={() => setSelectedSnapshot(null)}
-                className="p-1 hover:bg-[#2a2a2a] rounded text-[#e5e5e5]"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <img
-              src={selectedSnapshot}
-              alt="Snapshot enlarged"
-              className="w-full h-auto max-h-[75vh] object-contain rounded"
-            />
-          </div>
-        </div>
+        <SnapshotModal
+          snapshotSrc={selectedSnapshot}
+          onClose={() => setSelectedSnapshot(null)}
+        />
       )}
     </div>
   )
