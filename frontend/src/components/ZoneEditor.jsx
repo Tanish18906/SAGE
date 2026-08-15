@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Eye,
   X,
+  Check,
 } from 'lucide-react'
 
 // Available rules for zones (per CONTRACT.md - fall is never a zone rule)
@@ -102,10 +103,10 @@ export default function ZoneEditor({
           ctx.closePath()
 
           if (isSelected) {
-            // Highlighted selected zone style
-            ctx.fillStyle = 'rgba(245, 158, 11, 0.28)'
+            // Highlighted selected zone style — amber: this zone is the one actively being worked with
+            ctx.fillStyle = 'rgba(245, 166, 35, 0.24)'
             ctx.fill()
-            ctx.strokeStyle = '#f59e0b'
+            ctx.strokeStyle = '#f5a623'
             ctx.lineWidth = 2.5
             ctx.setLineDash([])
             ctx.stroke()
@@ -114,33 +115,33 @@ export default function ZoneEditor({
             zone.polygon.forEach(([x, y]) => {
               ctx.beginPath()
               ctx.arc(x, y, 4, 0, 2 * Math.PI)
-              ctx.fillStyle = '#f59e0b'
+              ctx.fillStyle = '#f5a623'
               ctx.fill()
-              ctx.strokeStyle = '#ffffff'
+              ctx.strokeStyle = '#0a0a0c'
               ctx.lineWidth = 1.5
               ctx.stroke()
             })
 
             // Prominent selection badge
-            ctx.fillStyle = '#f59e0b'
+            ctx.fillStyle = '#f5a623'
             ctx.font = 'bold 12px "JetBrains Mono", monospace'
             ctx.fillText(
-              `★ SELECTED: ${zone.name || zone.zone_id}`,
+              `SELECTED: ${zone.name || zone.zone_id}`,
               zone.polygon[0][0] + 8,
               zone.polygon[0][1] - 10
             )
           } else {
-            // Normal subtle zone style
-            ctx.fillStyle = 'rgba(255, 180, 171, 0.12)'
+            // Normal subtle zone style — neutral: a saved zone with no active alert is not urgent
+            ctx.fillStyle = 'rgba(122, 122, 125, 0.10)'
             ctx.fill()
-            ctx.strokeStyle = '#ffb4ab'
+            ctx.strokeStyle = '#7a7a7d'
             ctx.lineWidth = 1.5
             ctx.setLineDash([4, 4])
             ctx.stroke()
             ctx.setLineDash([])
 
             // Label
-            ctx.fillStyle = '#ffb4ab'
+            ctx.fillStyle = '#7a7a7d'
             ctx.font = 'bold 11px "JetBrains Mono", monospace'
             ctx.fillText(
               `ZONE: ${zone.name || zone.zone_id}`,
@@ -151,7 +152,7 @@ export default function ZoneEditor({
         }
       })
 
-      // 2. Draw active drawing points
+      // 2. Draw active drawing points — amber: this polygon is being live-edited right now
       if (points.length > 0) {
         ctx.beginPath()
         ctx.moveTo(points[0][0], points[0][1])
@@ -161,25 +162,29 @@ export default function ZoneEditor({
 
         if (points.length >= 3) {
           ctx.closePath()
-          ctx.fillStyle = 'rgba(16, 185, 129, 0.2)'
+          ctx.fillStyle = 'rgba(245, 166, 35, 0.18)'
           ctx.fill()
         }
 
-        ctx.strokeStyle = '#10b981'
+        ctx.strokeStyle = '#f5a623'
         ctx.lineWidth = 2
         ctx.setLineDash([4, 4])
         ctx.stroke()
         ctx.setLineDash([])
 
-        // Draw point handles
+        // Draw point handles with mono coordinate readouts
         points.forEach(([x, y], idx) => {
           ctx.beginPath()
           ctx.arc(x, y, 5, 0, 2 * Math.PI)
-          ctx.fillStyle = idx === 0 ? '#10b981' : '#34d399'
+          ctx.fillStyle = '#f5a623'
           ctx.fill()
-          ctx.strokeStyle = '#ffffff'
+          ctx.strokeStyle = '#0a0a0c'
           ctx.lineWidth = 1.5
           ctx.stroke()
+
+          ctx.fillStyle = '#e8e8e6'
+          ctx.font = '10px "JetBrains Mono", monospace'
+          ctx.fillText(`${x},${y}`, x + 8, y - 8)
         })
       }
     },
@@ -204,9 +209,9 @@ export default function ZoneEditor({
         ? capturedFrame
         : `data:image/jpeg;base64,${capturedFrame}`
     } else {
-      ctx.fillStyle = '#141313'
+      ctx.fillStyle = '#0e0e10'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.fillStyle = '#919094'
+      ctx.fillStyle = '#7a7a7d'
       ctx.font = '12px "JetBrains Mono", monospace'
       ctx.textAlign = 'center'
       ctx.fillText(
@@ -233,9 +238,9 @@ export default function ZoneEditor({
       testCanvas.width = 1280
       testCanvas.height = 720
       const ctx = testCanvas.getContext('2d')
-      ctx.fillStyle = '#16161a'
+      ctx.fillStyle = '#0e0e10'
       ctx.fillRect(0, 0, 1280, 720)
-      ctx.strokeStyle = '#2d2c35'
+      ctx.strokeStyle = '#232326'
       ctx.lineWidth = 1
       for (let x = 0; x < 1280; x += 40) {
         ctx.beginPath()
@@ -249,7 +254,7 @@ export default function ZoneEditor({
         ctx.lineTo(1280, y)
         ctx.stroke()
       }
-      ctx.fillStyle = '#10b981'
+      ctx.fillStyle = '#7a7a7d'
       ctx.font = '14px "JetBrains Mono", monospace'
       ctx.fillText('CALIBRATION GRID [1280x720] // READY FOR POLYGON PLOT', 24, 36)
       const b64 = testCanvas.toDataURL('image/jpeg').replace(/^data:image\/jpeg;base64,/, '')
@@ -404,30 +409,30 @@ export default function ZoneEditor({
   const selectedZone = savedZones.find((z) => z.zone_id === selectedZoneId)
 
   return (
-    <div className="bg-[#1c1b1b] border border-[#46464a] rounded p-5 shadow-2xl flex flex-col gap-5 text-[#e5e2e1]">
+    <div className="bg-panel border border-hairline rounded p-5 shadow-2xl flex flex-col gap-5 text-text-primary">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#46464a] pb-3">
+      <div className="flex items-center justify-between border-b border-hairline pb-3">
         <div className="flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-amber-400" />
-          <h2 className="text-sm font-mono font-bold tracking-wide uppercase">
+          <MapPin className="w-5 h-5 text-text-secondary" />
+          <h2 className="text-sm font-display font-bold tracking-wide uppercase">
             Zone Calibration & Polygon Plotter
           </h2>
         </div>
         <button
           onClick={handleCaptureFrame}
-          className="flex items-center gap-2 px-3 py-1.5 bg-[#2b2a2a] hover:bg-[#353434] border border-[#46464a] text-[#e5e2e1] rounded text-xs font-mono transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-3 py-1.5 bg-transparent hover:bg-panel-high border border-hairline-bright text-text-secondary hover:text-text-primary rounded text-xs font-sans font-semibold transition-colors cursor-pointer"
         >
-          <Camera className="w-4 h-4 text-emerald-400" />
+          <Camera className="w-4 h-4" />
           Capture Current Frame
         </button>
       </div>
 
       {statusMessage && (
         <div
-          className={`p-3 rounded text-xs font-mono flex items-center justify-between ${
+          className={`p-3 rounded text-xs font-sans flex items-center justify-between ${
             statusMessage.type === 'success'
-              ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
-              : 'bg-red-950/60 text-red-300 border border-red-500/40'
+              ? 'bg-green/10 text-green border border-green/40'
+              : 'bg-red/10 text-red border border-red/40'
           }`}
         >
           <span>{statusMessage.text}</span>
@@ -444,7 +449,7 @@ export default function ZoneEditor({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left: Canvas viewport (8 cols) */}
         <div className="lg:col-span-8 flex flex-col gap-2">
-          <div className="relative border border-[#46464a] rounded overflow-hidden bg-black shadow-inner">
+          <div className="relative border border-hairline rounded overflow-hidden bg-recessed shadow-inner">
             <canvas
               ref={canvasRef}
               width={1280}
@@ -454,15 +459,15 @@ export default function ZoneEditor({
             />
           </div>
 
-          <div className="flex items-center justify-between text-xs font-mono text-[#919094]">
+          <div className="flex items-center justify-between text-xs font-sans text-text-secondary">
             <span>
               {points.length > 0 ? (
                 <>
-                  Plotted Vertices: <strong className="text-white">{points.length}</strong> (Min 3 needed)
+                  Plotted Vertices: <strong className="font-mono text-amber">{points.length}</strong> (Min 3 needed)
                 </>
               ) : selectedZone ? (
-                <span className="text-amber-300">
-                  Click on canvas or list to select zones. Currently selected: <strong className="text-white">{selectedZone.name || selectedZone.zone_id}</strong>
+                <span className="text-amber">
+                  Click on canvas or list to select zones. Currently selected: <strong className="text-text-primary">{selectedZone.name || selectedZone.zone_id}</strong>
                 </span>
               ) : (
                 'Click canvas to plot vertices or click existing zones to select'
@@ -472,14 +477,14 @@ export default function ZoneEditor({
               <button
                 onClick={handleUndoPoint}
                 disabled={points.length === 0}
-                className="flex items-center gap-1 px-2 py-1 bg-[#2b2a2a] hover:bg-[#353434] disabled:opacity-40 rounded text-[11px] border border-[#46464a] cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 bg-panel-high hover:bg-panel-highest disabled:opacity-40 rounded text-[11px] border border-hairline-bright cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" /> Undo Point
               </button>
               <button
                 onClick={handleClearPoints}
                 disabled={points.length === 0}
-                className="flex items-center gap-1 px-2 py-1 bg-[#2b2a2a] hover:bg-[#353434] disabled:opacity-40 rounded text-[11px] border border-[#46464a] text-red-300 cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 bg-panel-high hover:bg-panel-highest disabled:opacity-40 rounded text-[11px] border border-hairline-bright text-text-secondary hover:text-red cursor-pointer"
               >
                 <Trash2 className="w-3 h-3" /> Clear Points
               </button>
@@ -488,33 +493,33 @@ export default function ZoneEditor({
         </div>
 
         {/* Right: Zone Config & Management Panel (4 cols) */}
-        <div className="lg:col-span-4 bg-[#201f1f] border border-[#46464a] rounded p-4 flex flex-col gap-4">
-          
+        <div className="lg:col-span-4 bg-panel-high border border-hairline rounded p-4 flex flex-col gap-4">
+
           {/* Selected Zone Quick Action Card */}
           {selectedZone && (
-            <div className="p-3 bg-amber-950/40 border border-amber-500/40 rounded-md flex flex-col gap-2 shadow-md">
+            <div className="p-3 bg-amber/10 border border-amber/40 rounded-md flex flex-col gap-2 shadow-md">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400">
+                <div className="flex items-center gap-1.5 text-xs font-sans font-bold text-amber">
                   <MapPin className="w-3.5 h-3.5" />
                   <span>SELECTED ZONE</span>
                 </div>
                 <button
                   onClick={() => setSelectedZoneId(null)}
-                  className="text-neutral-400 hover:text-white text-[11px] font-mono cursor-pointer"
+                  className="text-text-tertiary hover:text-text-primary text-[11px] font-sans cursor-pointer"
                   title="Deselect Zone"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              <div className="text-xs font-mono">
-                <div className="font-semibold text-white text-sm">{selectedZone.name || selectedZone.zone_id}</div>
-                <div className="text-[10px] text-[#919094] mt-0.5 font-mono">ID: {selectedZone.zone_id} &bull; {selectedZone.polygon?.length || 0} vertices</div>
+              <div className="text-xs font-sans">
+                <div className="font-semibold text-text-primary text-sm">{selectedZone.name || selectedZone.zone_id}</div>
+                <div className="text-[10px] text-text-secondary mt-0.5 font-mono">ID: {selectedZone.zone_id} &bull; {selectedZone.polygon?.length || 0} vertices</div>
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   {(selectedZone.rules || []).map((r) => (
                     <span
                       key={r}
-                      className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-mono uppercase"
+                      className="px-1.5 py-0.5 rounded bg-amber/15 text-amber border border-amber/30 text-[9px] font-sans font-semibold uppercase"
                     >
                       {r.replace('_', ' ')}
                     </span>
@@ -522,20 +527,20 @@ export default function ZoneEditor({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 mt-1 pt-2 border-t border-amber-500/20">
+              <div className="flex items-center gap-2 mt-1 pt-2 border-t border-amber/20">
                 <button
                   type="button"
                   onClick={() => handleDeleteZone(selectedZone.zone_id)}
                   disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-500/50 text-red-200 font-mono text-xs font-bold rounded transition-colors cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-panel border border-hairline-bright text-text-secondary hover:text-red hover:border-red/50 font-sans text-xs font-bold rounded transition-colors cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  <Trash2 className="w-3.5 h-3.5" />
                   Delete Zone
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedZoneId(null)}
-                  className="px-3 py-1.5 bg-[#2b2a2a] hover:bg-[#353434] border border-[#46464a] text-[#c7c6ca] font-mono text-xs rounded transition-colors cursor-pointer"
+                  className="px-3 py-1.5 bg-panel hover:bg-panel-highest border border-hairline-bright text-text-secondary font-sans text-xs rounded transition-colors cursor-pointer"
                 >
                   Deselect
                 </button>
@@ -545,13 +550,13 @@ export default function ZoneEditor({
 
           {/* Form to Plot / Define Zone */}
           <div>
-            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#e5e2e1] mb-3">
+            <h3 className="text-xs font-display font-bold uppercase tracking-wider text-text-primary mb-3">
               Define New Restricted Zone
             </h3>
 
             <form onSubmit={handleSaveZone} className="flex flex-col gap-3.5">
               <div>
-                <label className="block text-xs font-mono text-[#c7c6ca] mb-1">
+                <label className="block text-xs font-sans text-text-secondary mb-1">
                   Zone Identifier / Name
                 </label>
                 <input
@@ -559,12 +564,12 @@ export default function ZoneEditor({
                   value={zoneName}
                   onChange={(e) => setZoneName(e.target.value)}
                   placeholder="e.g. North_Pathway_01"
-                  className="w-full bg-[#141313] border border-[#46464a] rounded px-3 py-1.5 text-xs text-[#e5e2e1] font-mono focus:border-amber-400 focus:outline-none"
+                  className="w-full bg-recessed border border-hairline-bright rounded px-3 py-1.5 text-xs text-text-primary font-sans focus:border-amber focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-mono text-[#c7c6ca] mb-1">
+                <label className="block text-xs font-sans text-text-secondary mb-1">
                   Active Detection Rules
                 </label>
                 <div className="flex flex-col gap-2">
@@ -574,25 +579,36 @@ export default function ZoneEditor({
                     return (
                       <div
                         key={rule.id}
+                        role="checkbox"
+                        aria-checked={isChecked}
+                        tabIndex={0}
                         onClick={() => toggleRule(rule.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            toggleRule(rule.id)
+                          }
+                        }}
                         className={`p-2.5 rounded border cursor-pointer transition-all flex items-start gap-2.5 ${
                           isChecked
-                            ? 'bg-[#353434] border-amber-500/50 text-[#e5e2e1]'
-                            : 'bg-[#141313] border-[#46464a]/50 text-[#919094] hover:border-[#46464a]'
+                            ? 'bg-amber/10 border-amber text-text-primary'
+                            : 'bg-recessed border-hairline text-text-secondary hover:border-hairline-bright'
                         }`}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {}}
-                          className="mt-0.5 accent-amber-400"
-                        />
+                        {/* Arming indicator, not a form checkbox */}
+                        <div
+                          className={`mt-0.5 w-4 h-4 rounded-xs border flex items-center justify-center shrink-0 transition-colors ${
+                            isChecked ? 'bg-amber border-amber' : 'bg-recessed border-hairline-bright'
+                          }`}
+                        >
+                          {isChecked && <Check className="w-3 h-3 text-black" strokeWidth={3} />}
+                        </div>
                         <div className="flex-1">
-                          <div className="flex items-center gap-1.5 text-xs font-mono font-semibold">
-                            <Icon className="w-3.5 h-3.5 text-amber-400" />
+                          <div className="flex items-center gap-1.5 text-xs font-sans font-semibold">
+                            <Icon className={`w-3.5 h-3.5 ${isChecked ? 'text-amber' : 'text-text-tertiary'}`} />
                             {rule.label}
                           </div>
-                          <p className="text-[10px] text-[#919094] mt-0.5">{rule.description}</p>
+                          <p className="text-[10px] text-text-secondary mt-0.5 font-sans">{rule.description}</p>
                         </div>
                       </div>
                     )
@@ -603,7 +619,7 @@ export default function ZoneEditor({
               <button
                 type="submit"
                 disabled={loading || points.length < 3 || !zoneName.trim()}
-                className="w-full py-2 bg-[#c8c6c7] hover:bg-white text-[#313031] disabled:opacity-40 font-mono font-bold text-xs uppercase tracking-wider rounded transition-colors shadow-lg cursor-pointer"
+                className="w-full py-2 bg-text-primary hover:bg-white text-base disabled:opacity-40 font-sans font-bold text-xs uppercase tracking-wider rounded transition-colors shadow-lg cursor-pointer"
               >
                 {loading ? 'Saving Polygon...' : 'Save Zone Polygon'}
               </button>
@@ -611,18 +627,18 @@ export default function ZoneEditor({
           </div>
 
           {/* Saved Zones List with Select & Delete */}
-          <div className="border-t border-[#46464a] pt-3 mt-1">
+          <div className="border-t border-hairline pt-3 mt-1">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-[11px] font-mono text-[#c7c6ca] uppercase">
+              <h4 className="text-[11px] font-sans font-semibold text-text-secondary uppercase">
                 Calibrated Zones ({savedZones.length})
               </h4>
-              <span className="text-[10px] font-mono text-[#919094]">Click to choose</span>
+              <span className="text-[10px] font-sans text-text-tertiary">Click to choose</span>
             </div>
 
             <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
               {savedZones.length === 0 ? (
-                <div className="p-3 text-center text-xs font-mono text-[#777777] bg-[#141313] rounded border border-[#2b2a2a]">
-                  No calibrated zones yet. Draw and save one above.
+                <div className="p-3 text-center text-xs font-sans text-text-secondary bg-recessed rounded border border-hairline">
+                  Click the canvas above to start plotting your first zone.
                 </div>
               ) : (
                 savedZones.map((z, idx) => {
@@ -633,28 +649,28 @@ export default function ZoneEditor({
                       onClick={() =>
                         setSelectedZoneId((prev) => (prev === z.zone_id ? null : z.zone_id))
                       }
-                      className={`p-2.5 rounded text-xs font-mono flex items-center justify-between cursor-pointer transition-all border ${
+                      className={`p-2.5 rounded text-xs font-sans flex items-center justify-between cursor-pointer transition-all border ${
                         isSelected
-                          ? 'bg-amber-950/50 border-amber-500/60 shadow-sm'
-                          : 'bg-[#141313] border-[#353434] hover:border-[#46464a]'
+                          ? 'bg-amber/10 border-amber/60 shadow-sm'
+                          : 'bg-recessed border-hairline hover:border-hairline-bright'
                       }`}
                     >
                       <div className="flex flex-col flex-1 min-w-0 pr-2">
                         <div className="flex items-center gap-1.5">
                           <span
                             className={`font-semibold truncate ${
-                              isSelected ? 'text-amber-300' : 'text-[#e5e2e1]'
+                              isSelected ? 'text-amber' : 'text-text-primary'
                             }`}
                           >
                             {z.name || z.zone_id}
                           </span>
                           {isSelected && (
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/30 text-amber-200 uppercase font-mono">
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber/20 text-amber uppercase font-sans font-semibold">
                               Active
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-[10px] text-[#919094] mt-0.5">
+                        <div className="flex items-center gap-2 text-[10px] text-text-secondary mt-0.5 font-mono">
                           <span>{z.polygon ? `${z.polygon.length} pts` : ''}</span>
                           <span>&bull;</span>
                           <span>{(z.rules || []).join(', ')}</span>
@@ -669,7 +685,7 @@ export default function ZoneEditor({
                           handleDeleteZone(z.zone_id)
                         }}
                         disabled={loading}
-                        className="p-1.5 text-[#919094] hover:text-red-400 hover:bg-red-950/40 rounded transition-colors cursor-pointer shrink-0"
+                        className="p-1.5 text-text-tertiary hover:text-red hover:bg-red/10 rounded transition-colors cursor-pointer shrink-0"
                         title={`Delete zone "${z.name || z.zone_id}"`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />

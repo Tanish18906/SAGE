@@ -48,5 +48,30 @@
     "rules": [
       "after_hours"
     ]
+  },
+  {
+    "zone_id": "chemistry_lab_entrance_1",
+    "name": "Chemistry Lab Entrance",
+    "polygon": [
+      [
+        50,
+        50
+      ],
+      [
+        250,
+        50
+      ],
+      [
+        250,
+        300
+      ],
+      [
+        50,
+        300
+      ]
+    ],
+    "rules": [
+      "after_hours"
+    ]
   }
 ]

@@ -47,30 +47,30 @@ export default function AlertCard({
 
   if (isFall) {
     return (
-      <div className="bg-[#141313] border border-[#ffb4ab]/80 relative pl-1 overflow-hidden group shadow-lg transition-all">
+      <div className="bg-panel border border-red/50 relative pl-1 overflow-hidden group shadow-lg transition-all">
         {/* Left Solid Red Bar */}
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#ff3b30]" />
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red" />
 
         <div className="p-3">
           {/* Card Top Row: Badge + ID + Elapsed time */}
           <div className="flex justify-between items-start mb-2">
             <div className="flex items-center gap-2">
-              <div className="bg-[#ff3b30]/15 text-[#ffb4ab] px-1.5 py-0.5 border border-[#ff3b30]/40 flex items-center gap-1 rounded-xs">
-                <AlertOctagon className="w-3 h-3 text-[#ff3b30]" />
-                <span className="font-mono text-[9px] font-bold tracking-wider">CRITICAL</span>
+              <div className="bg-red/15 text-red px-1.5 py-0.5 border border-red/40 flex items-center gap-1 rounded-xs">
+                <AlertOctagon className="w-3 h-3 text-red" />
+                <span className="font-sans text-[9px] font-bold tracking-wider">CRITICAL</span>
               </div>
-              <span className="font-mono text-[10px] text-[#c7c6ca]">
+              <span className="font-mono text-telemetry text-text-secondary">
                 ID: {String(alert.tracked_id || '09').padStart(2, '0')}
               </span>
             </div>
 
-            <span className="font-mono text-[10px] text-[#ff3b30] font-bold animate-pulse">
+            <span className="font-mono text-telemetry text-red font-bold animate-pulse">
               {elapsed}
             </span>
           </div>
 
           {/* Headline Narration */}
-          <h3 className="font-sans font-semibold text-[13px] leading-snug text-[#e5e2e1] mb-2">
+          <h3 className="font-sans font-semibold text-[13px] leading-snug text-text-primary mb-2">
             {alert.narration || 'Fall detected near isolated pathway — subject immobilized.'}
           </h3>
 
@@ -79,7 +79,7 @@ export default function AlertCard({
             {snapshotSrc && (
               <div
                 onClick={() => onOpenSnapshot && onOpenSnapshot(snapshotSrc)}
-                className="w-20 h-14 bg-[#353434] border border-[#46464a] shrink-0 relative overflow-hidden rounded-xs cursor-pointer group/thumb"
+                className="w-20 h-14 bg-recessed border border-hairline shrink-0 relative overflow-hidden rounded-xs cursor-pointer group/thumb"
                 title="Click to enlarge evidence frame"
               >
                 <img
@@ -94,7 +94,7 @@ export default function AlertCard({
             )}
 
             <div className="flex flex-col justify-between flex-1 min-h-[56px]">
-              <span className="font-sans text-[11px] text-[#c7c6ca] leading-snug">
+              <span className="font-sans text-[11px] text-text-secondary leading-snug">
                 {alert.zone_id
                   ? `Zone: ${alert.zone_id} | High-velocity downward vector.`
                   : 'Zone: North_Pathway_01 | Rapid vertical posture collapse.'}
@@ -105,10 +105,10 @@ export default function AlertCard({
                 <button
                   onClick={() => setDispatched(true)}
                   disabled={dispatched}
-                  className={`font-mono font-bold text-[10px] px-2.5 py-0.5 rounded-xs transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer ${
+                  className={`font-sans font-bold text-[10px] px-2.5 py-0.5 rounded-xs transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer ${
                     dispatched
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-[#ff3b30] text-white hover:bg-red-600'
+                      ? 'bg-green text-black'
+                      : 'bg-red text-white hover:bg-red/80'
                   }`}
                 >
                   {dispatched ? (
@@ -125,10 +125,10 @@ export default function AlertCard({
                 <button
                   onClick={() => setAcknowledged(true)}
                   disabled={acknowledged}
-                  className={`border border-[#46464a] font-mono text-[10px] px-2.5 py-0.5 rounded-xs transition-colors uppercase tracking-wider cursor-pointer ${
+                  className={`border border-hairline-bright font-sans font-bold text-[10px] px-2.5 py-0.5 rounded-xs transition-colors uppercase tracking-wider cursor-pointer ${
                     acknowledged
-                      ? 'text-emerald-400 border-emerald-500/50'
-                      : 'text-[#c7c6ca] hover:text-white hover:border-[#919094]'
+                      ? 'text-green border-green/50'
+                      : 'text-text-secondary hover:text-text-primary hover:border-text-tertiary'
                   }`}
                 >
                   {acknowledged ? 'ACKNOWLEDGED' : 'ACKNOWLEDGE'}
@@ -145,28 +145,28 @@ export default function AlertCard({
   const Icon = isAfterHours ? Clock : UserCheck
 
   return (
-    <div className="bg-[#141313] border border-yellow-600/40 hover:border-yellow-500/70 relative pl-1 overflow-hidden group transition-all shadow-sm">
+    <div className="bg-panel border border-amber/40 hover:border-amber/70 relative pl-1 overflow-hidden group transition-all shadow-sm">
       {/* Left Amber Bar */}
-      <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-600" />
+      <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber" />
 
       <div className="p-3">
         {/* Card Top: Badge + ID + Elapsed Time */}
         <div className="flex justify-between items-start mb-2">
           <div className="flex items-center gap-2">
-            <div className="bg-yellow-600/15 text-yellow-500 px-1.5 py-0.5 border border-yellow-600/30 flex items-center gap-1 rounded-xs">
-              <Icon className="w-3 h-3 text-yellow-500" />
-              <span className="font-mono text-[9px] font-bold tracking-wider">WARNING</span>
+            <div className="bg-amber/15 text-amber px-1.5 py-0.5 border border-amber/30 flex items-center gap-1 rounded-xs">
+              <Icon className="w-3 h-3 text-amber" />
+              <span className="font-sans text-[9px] font-bold tracking-wider">WARNING</span>
             </div>
-            <span className="font-mono text-[10px] text-[#c7c6ca]">
+            <span className="font-mono text-telemetry text-text-secondary">
               ID: {String(alert.tracked_id || (isAfterHours ? '04' : '12')).padStart(2, '0')}
             </span>
           </div>
 
-          <span className="font-mono text-[10px] text-[#c7c6ca]">{elapsed}</span>
+          <span className="font-mono text-telemetry text-text-secondary">{elapsed}</span>
         </div>
 
         {/* Headline Narration */}
-        <h3 className="font-sans font-semibold text-[13px] leading-snug text-[#e5e2e1] mb-1.5">
+        <h3 className="font-sans font-semibold text-[13px] leading-snug text-text-primary mb-1.5">
           {alert.narration ||
             (isAfterHours
               ? 'Person detected inside hostel gate zone after hours'
@@ -178,7 +178,7 @@ export default function AlertCard({
           {snapshotSrc && (
             <div
               onClick={() => onOpenSnapshot && onOpenSnapshot(snapshotSrc)}
-              className="w-14 h-10 bg-[#353434] border border-[#46464a] shrink-0 relative overflow-hidden rounded-xs cursor-pointer group/thumb"
+              className="w-14 h-10 bg-recessed border border-hairline shrink-0 relative overflow-hidden rounded-xs cursor-pointer group/thumb"
             >
               <img
                 src={snapshotSrc}
@@ -188,7 +188,7 @@ export default function AlertCard({
             </div>
           )}
 
-          <span className="font-sans text-[11px] text-[#c7c6ca] leading-snug block flex-1">
+          <span className="font-sans text-[11px] text-text-secondary leading-snug block flex-1">
             {alert.zone_id
               ? `Zone: ${alert.zone_id} | Security threshold exceeded.`
               : isAfterHours

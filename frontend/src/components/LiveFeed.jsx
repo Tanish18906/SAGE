@@ -2,12 +2,55 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Maximize2,
   Minimize2,
-  AlertTriangle,
-  WifiOff,
-  VideoOff,
   Eye,
 } from 'lucide-react'
 
+// A currently-active alert (recent enough that the reticle should still flag it) —
+// tracked ids get recycled by DeepSORT, so a stale historical alert must not relight one
+const ACTIVE_ALERT_WINDOW_MS = 90_000
+
+function elapsedShort(isoTimestamp) {
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(isoTimestamp).getTime()) / 1000))
+  if (diffSec < 60) return `-${diffSec}s`
+  return `-${Math.floor(diffSec / 60)}m`
+}
+
+// Four short corner marks implying a box, not a solid rectangle — the reticle itself
+// inherits its color from the wrapping element via currentColor
+function TrackReticle({ x, y, width, height, scale, colorClass, label }) {
+  const left = x * scale
+  const top = y * scale
+  const w = Math.max(width * scale, 8)
+  const h = Math.max(height * scale, 8)
+  const bracket = Math.max(8, Math.min(16, w / 3, h / 3))
+
+  const corners = [
+    { left: -2, top: -2, borderTopWidth: 2, borderLeftWidth: 2 },
+    { right: -2, top: -2, borderTopWidth: 2, borderRightWidth: 2 },
+    { left: -2, bottom: -2, borderBottomWidth: 2, borderLeftWidth: 2 },
+    { right: -2, bottom: -2, borderBottomWidth: 2, borderRightWidth: 2 },
+  ]
+
+  return (
+    <div
+      className={`absolute pointer-events-none transition-colors duration-300 ${colorClass}`}
+      style={{ left, top, width: w, height: h }}
+    >
+      {corners.map((style, i) => (
+        <span
+          key={i}
+          className="absolute border-current border-solid"
+          style={{ width: bracket, height: bracket, ...style }}
+        />
+      ))}
+      {label && (
+        <div className="absolute -top-[17px] left-0 font-mono text-telemetry font-semibold tracking-wide whitespace-nowrap [text-shadow:0_1px_3px_rgba(0,0,0,0.95)]">
+          {label}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function LiveFeed({
   wsUrl = 'ws://localhost:8000/ws/stream',
@@ -17,12 +60,15 @@ export default function LiveFeed({
   alerts = [],
 }) {
   const [currentFrame, setCurrentFrame] = useState(null)
+  const [detections, setDetections] = useState([])
+  const [frameSize, setFrameSize] = useState({ width: 1280, height: 720 })
+  const [wellWidth, setWellWidth] = useState(0)
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showOverlays, setShowOverlays] = useState(true)
-  const [detectionsCount, setDetectionsCount] = useState(0)
 
-  const containerRef = useRef(null)
+  const housingRef = useRef(null)
+  const wellRef = useRef(null)
   const onFrameUpdateRef = useRef(onFrameUpdate)
   const onAlertReceivedRef = useRef(onAlertReceived)
   const onConnectionChangeRef = useRef(onConnectionChange)
@@ -70,7 +116,7 @@ export default function LiveFeed({
             if (data.type === 'frame') {
               setCurrentFrame(data.image_base64)
               if (Array.isArray(data.detections)) {
-                setDetectionsCount(data.detections.length)
+                setDetections(data.detections)
               }
               if (onFrameUpdateRef.current) onFrameUpdateRef.current(data)
             } else if (data.type === 'alert') {
@@ -109,10 +155,23 @@ export default function LiveFeed({
     }
   }, [wsUrl])
 
+  // Track the well's rendered width so source-pixel detection boxes scale onto it correctly
+  useEffect(() => {
+    const el = wellRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWellWidth(entry.contentRect.width)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   const toggleFullscreen = () => {
-    if (!containerRef.current) return
+    if (!housingRef.current) return
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+      housingRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
     } else {
       document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
     }
@@ -124,103 +183,200 @@ export default function LiveFeed({
       : `data:image/jpeg;base64,${currentFrame}`
     : null
 
-  // Check if there is an active fall alert in the alert list
-  const hasActiveFall = alerts.some((a) => a.alert_type === 'fall')
+  const handleImageLoad = (e) => {
+    const { naturalWidth, naturalHeight } = e.target
+    if (naturalWidth && naturalHeight) {
+      setFrameSize((prev) =>
+        prev.width === naturalWidth && prev.height === naturalHeight
+          ? prev
+          : { width: naturalWidth, height: naturalHeight }
+      )
+    }
+  }
+
+  const scale = wellWidth > 0 ? wellWidth / frameSize.width : 0
+
+  // Only alerts recent enough to still be "currently happening" light up a reticle;
+  // stale history (recycled tracked ids) must never relight in amber/red
+  const now = Date.now()
+  const activeAlertByTrackedId = new Map()
+  for (const a of alerts) {
+    if (a.tracked_id == null) continue
+    if (now - new Date(a.timestamp).getTime() > ACTIVE_ALERT_WINDOW_MS) continue
+    const existing = activeAlertByTrackedId.get(a.tracked_id)
+    if (!existing || (a.alert_type === 'fall' && existing.alert_type !== 'fall')) {
+      activeAlertByTrackedId.set(a.tracked_id, a)
+    }
+  }
+  const hasActiveFall = [...activeAlertByTrackedId.values()].some((a) => a.alert_type === 'fall')
 
   return (
     <div className="w-full h-full flex flex-col justify-between">
-      {/* Video Viewport Container */}
+      {/* Console Housing — the bezel around the instrument */}
       <div
-        ref={containerRef}
-        className="relative w-full flex-1 bg-black border border-[#46464a]/80 rounded overflow-hidden group shadow-2xl flex items-center justify-center min-h-[380px]"
+        ref={housingRef}
+        className="relative w-full flex-1 bg-panel-high border border-hairline rounded p-2.5 shadow-2xl flex items-center justify-center min-h-[380px] group"
       >
-        {/* Render Live Camera Feed Image */}
-        {imageSrc && connectionStatus !== 'camera_disconnected' ? (
-          <div className="relative w-full h-full flex items-center justify-center bg-[#0d0d0d] overflow-hidden">
+        {/* Recessed Well — aspect-locked to the source sensor resolution */}
+        <div
+          ref={wellRef}
+          className="relative w-full max-h-full overflow-hidden rounded-sm bg-recessed"
+          style={{
+            aspectRatio: `${frameSize.width} / ${frameSize.height}`,
+            boxShadow:
+              'inset 0 2px 10px rgba(0,0,0,0.75), inset 0 0 0 1px rgba(0,0,0,0.5)',
+          }}
+        >
+          {/* Render Live Camera Feed Image */}
+          {imageSrc && connectionStatus !== 'camera_disconnected' ? (
             <img
               src={imageSrc}
               alt="Live Surveillance Video"
-              className="w-full h-full object-cover select-none pointer-events-none"
+              onLoad={handleImageLoad}
+              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
             />
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center p-8 text-center bg-[#141313] w-full h-full">
-            {connectionStatus === 'camera_disconnected' ? (
-              <>
-                <VideoOff className="w-12 h-12 text-amber-400 mb-3 animate-pulse" />
-                <p className="text-sm font-semibold text-amber-300 font-mono">Camera Feed Lost</p>
-                <p className="text-xs text-[#c7c6ca] mt-1 max-w-xs font-mono">
-                  Check DroidCam phone connection or camera index in backend configuration.
-                </p>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-12 h-12 text-[#919094] mb-3 animate-pulse" />
-                <p className="text-sm font-semibold text-[#e5e2e1] font-mono">
-                  Connecting to Video Stream
-                </p>
-                <p className="text-xs text-[#c7c6ca] mt-1 max-w-xs font-mono">
-                  Connecting to <code className="text-amber-400">{wsUrl}</code>
-                </p>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Fall Emergency Red Pulsing Halo */}
-        {hasActiveFall && (
-          <div className="absolute inset-0 pointer-events-none border-2 border-red-500/80 shadow-[inset_0_0_40px_rgba(239,68,68,0.4)] animate-pulse" />
-        )}
-
-        {/* Telemetry HUD Top Overlay */}
-        {showOverlays && (
-          <div className="absolute top-0 left-0 right-0 p-3.5 flex justify-between items-start pointer-events-none bg-gradient-to-b from-black/80 via-black/30 to-transparent">
-            {/* Live Indicator + Zone */}
-            <div className="flex items-center gap-2.5">
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-xs bg-red-600/90 text-white font-mono text-[10px] font-bold tracking-widest uppercase">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                LIVE
-              </span>
-              <span className="font-mono text-xs text-[#e5e2e1] bg-black/60 px-2 py-0.5 rounded-xs border border-white/10 tracking-tight font-medium">
-                PRIMARY SENSOR
-              </span>
-            </div>
-
-            {/* Top Right: Tracked People Count & Timestamp */}
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center gap-2">
-                {detectionsCount > 0 && (
-                  <span className="font-mono text-[11px] text-emerald-400 bg-black/70 px-2 py-0.5 rounded-xs border border-emerald-500/30 font-semibold">
-                    {detectionsCount} TRACKED
-                  </span>
+          ) : (
+            <>
+              {connectionStatus !== 'camera_disconnected' && (
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                  <div
+                    className="absolute inset-x-0 h-20 [animation:sage-scan-sweep_3.2s_ease-in-out_infinite]"
+                    style={{
+                      background:
+                        'linear-gradient(to bottom, transparent, rgba(245,166,35,0.10), transparent)',
+                    }}
+                  />
+                </div>
+              )}
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+                {connectionStatus === 'camera_disconnected' ? (
+                  <>
+                    {/* Lost-signal frame — same corner-bracket vocabulary, but static and red:
+                        a hard failure, not activity, so no sweep and no pulse */}
+                    <div className="relative w-12 h-12 mb-3">
+                      <span className="absolute left-0 top-0 w-3 h-3 border-t-2 border-l-2 border-red" />
+                      <span className="absolute right-0 top-0 w-3 h-3 border-t-2 border-r-2 border-red" />
+                      <span className="absolute left-0 bottom-0 w-3 h-3 border-b-2 border-l-2 border-red" />
+                      <span className="absolute right-0 bottom-0 w-3 h-3 border-b-2 border-r-2 border-red" />
+                    </div>
+                    <p className="text-sm font-semibold text-red font-sans">Camera Feed Lost</p>
+                    <p className="text-xs text-text-secondary mt-1 max-w-xs font-sans">
+                      Check DroidCam phone connection or camera index in backend configuration.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {/* Acquiring-signal frame — same corner-bracket vocabulary as the tracking reticles */}
+                    <div className="relative w-12 h-12 mb-3">
+                      <span className="absolute left-0 top-0 w-3 h-3 border-t-2 border-l-2 border-text-tertiary" />
+                      <span className="absolute right-0 top-0 w-3 h-3 border-t-2 border-r-2 border-text-tertiary" />
+                      <span className="absolute left-0 bottom-0 w-3 h-3 border-b-2 border-l-2 border-text-tertiary" />
+                      <span className="absolute right-0 bottom-0 w-3 h-3 border-b-2 border-r-2 border-text-tertiary" />
+                    </div>
+                    <p className="text-sm font-semibold text-text-primary font-sans">
+                      Connecting to Video Stream
+                    </p>
+                    <p className="text-xs text-text-secondary mt-1 max-w-xs font-sans">
+                      Connecting to <code className="font-mono text-text-secondary">{wsUrl}</code>
+                    </p>
+                  </>
                 )}
-                <span className="font-mono text-xs text-[#c7c6ca] bg-black/60 px-2 py-0.5 rounded-xs border border-white/10">
-                  {new Date().toLocaleTimeString()}
+              </div>
+            </>
+          )}
+
+          {/* Tracking Reticles — the signature element */}
+          {showOverlays && scale > 0 && imageSrc && connectionStatus !== 'camera_disconnected' && (
+            <>
+              {detections.map((d) => {
+                if (!d.box) return null
+                const activeAlert = activeAlertByTrackedId.get(d.tracked_id)
+                const colorClass = activeAlert
+                  ? activeAlert.alert_type === 'fall'
+                    ? 'text-red'
+                    : 'text-amber'
+                  : 'text-text-primary/80'
+                const label = activeAlert
+                  ? `ID·${String(d.tracked_id).padStart(2, '0')} · ${
+                      activeAlert.zone_id ? activeAlert.zone_id.toUpperCase() + ' · ' : ''
+                    }${elapsedShort(activeAlert.timestamp)}`
+                  : `ID·${String(d.tracked_id).padStart(2, '0')}`
+                return (
+                  <TrackReticle
+                    key={d.tracked_id}
+                    x={d.box.x}
+                    y={d.box.y}
+                    width={d.box.width}
+                    height={d.box.height}
+                    scale={scale}
+                    colorClass={colorClass}
+                    label={label}
+                  />
+                )
+              })}
+            </>
+          )}
+
+          {/* Vignette — draws the eye inward, reads as a sensor feed rather than a pasted image */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ boxShadow: 'inset 0 0 90px 18px rgba(0,0,0,0.5)' }}
+          />
+
+          {/* Fall Emergency Red Pulsing Halo */}
+          {hasActiveFall && (
+            <div className="absolute inset-0 pointer-events-none border-2 border-red/80 shadow-[inset_0_0_40px_rgba(224,57,62,0.4)] animate-pulse" />
+          )}
+
+          {/* Telemetry HUD Top Overlay */}
+          {showOverlays && (
+            <div className="absolute top-0 left-0 right-0 p-3 flex justify-between items-start pointer-events-none bg-gradient-to-b from-black/75 via-black/25 to-transparent">
+              {/* Live Indicator + Zone */}
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-xs bg-amber/90 text-black font-mono text-telemetry font-bold tracking-widest uppercase">
+                  <span className="w-1.5 h-1.5 rounded-full bg-black/70 [animation:sage-live-pulse_2.6s_ease-in-out_infinite]" />
+                  LIVE
+                </span>
+                <span className="font-mono text-telemetry text-text-primary bg-black/60 px-2 py-0.5 rounded-xs border border-white/10 tracking-tight font-medium">
+                  PRIMARY SENSOR
                 </span>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* Controls Overlay Hover Toolbar */}
-        <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 backdrop-blur px-2.5 py-1 rounded-sm border border-[#46464a]">
-          <button
-            onClick={() => setShowOverlays(!showOverlays)}
-            className="p-1 text-[#c7c6ca] hover:text-white transition-colors cursor-pointer"
-            title={showOverlays ? 'Hide HUD' : 'Show HUD'}
-          >
-            <Eye className="w-4 h-4" />
-          </button>
-          <button
-            onClick={toggleFullscreen}
-            className="p-1 text-[#c7c6ca] hover:text-white transition-colors cursor-pointer"
-            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
+              {/* Top Right: Tracked People Count & Timestamp */}
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  {detections.length > 0 && (
+                    <span className="font-mono text-telemetry text-text-primary bg-black/70 px-2 py-0.5 rounded-xs border border-white/10 font-semibold">
+                      {detections.length} TRACKED
+                    </span>
+                  )}
+                  <span className="font-mono text-telemetry text-text-secondary bg-black/60 px-2 py-0.5 rounded-xs border border-white/10">
+                    {new Date().toLocaleTimeString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Controls Overlay Hover Toolbar */}
+          <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 backdrop-blur px-2.5 py-1 rounded-sm border border-hairline">
+            <button
+              onClick={() => setShowOverlays(!showOverlays)}
+              className="p-1 text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+              title={showOverlays ? 'Hide HUD' : 'Show HUD'}
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+            <button
+              onClick={toggleFullscreen}
+              className="p-1 text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   )
 }
-

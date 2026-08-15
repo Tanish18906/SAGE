@@ -55,7 +55,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen bg-[#141313] text-[#e5e2e1] flex flex-col font-sans overflow-hidden select-none">
+    <div className="h-screen w-screen bg-base text-text-primary flex flex-col font-sans overflow-hidden select-none">
       {/* Fixed Top Navigation Bar */}
       <TopNavBar
         connectionStatus={connectionState}
@@ -67,7 +67,7 @@ export default function App() {
         {activeTab === 'live' && (
           <div className="flex-1 flex w-full h-full overflow-hidden">
             {/* Left 70%: Video Viewport Section */}
-            <section className="w-[70%] h-full relative bg-black flex flex-col p-3.5 overflow-hidden">
+            <section className="w-[70%] h-full relative bg-base flex flex-col p-3.5 overflow-hidden">
               <LiveFeed
                 onFrameUpdate={handleFrameUpdate}
                 onAlertReceived={handleAlertReceived}
