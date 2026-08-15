@@ -3,8 +3,16 @@
 
 ---
 
-## 🔵 CURRENT PHASE: Phase 0 — Contract + Skeleton
-*(Update this line yourself as you progress. This is the first thing a fresh agent session should read.)*
+## 🔵 CURRENT PHASE: Phase 1 — After-Hours Restricted Presence (+ Zone Tool)
+*(Branch: `feature/after-hours`)*
+
+### Backend Progress Tracker:
+- [x] **Phase 0**: Dependencies installed, `.env` template set up, empty FastAPI `/health` route verified.
+- [ ] **Phase 1, Step 1-3 [Agent A - Claude]**: Camera capture loop, YOLOv8 inference, DeepSORT persistent tracking in `backend/detection/detector.py`.
+- [ ] **Phase 1, Step 4-5 [Agent B - Antigravity]**: FastAPI WebSocket `/ws/stream` & Zone storage REST endpoints (`POST /api/zones`, `GET /api/zones`) in `backend/main.py`.
+- [ ] **Phase 1, Step 6-8 [Agent A - Claude]**: Zone check logic & after-hours time-check rule in `backend/detection/rules.py` producing `Alert` dict.
+- [ ] **Phase 1, Step 9-12 [Agent B - Antigravity]**: Shared queue consumer, SQLite persistence, GPT-4o narration in `backend/llm/narrate.py`, alert/frame broadcast & `GET /api/alerts`.
+
 
 ---
 

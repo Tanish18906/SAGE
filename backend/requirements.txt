@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+ultralytics
+deep-sort-realtime
+mediapipe
+opencv-python
+openai
+python-dotenv
+websockets

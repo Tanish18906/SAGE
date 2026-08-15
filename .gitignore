@@ -20,8 +20,11 @@ ENV/
 # Database & Snapshots
 *.db
 *.sqlite3
-backend/snapshots/
-snapshots/
+backend/snapshots/*
+!backend/snapshots/.gitkeep
+snapshots/*
+!snapshots/.gitkeep
+
 
 # OS / Editor
 .DS_Store
