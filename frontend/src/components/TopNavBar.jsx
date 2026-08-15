@@ -8,8 +8,6 @@ import {
 
 export default function TopNavBar({
   connectionStatus = 'connected',
-  isMockMode = true,
-  onToggleMockMode = () => {},
   activeCamera = 'CAMERA 01',
 }) {
   const [utcTime, setUtcTime] = useState('')

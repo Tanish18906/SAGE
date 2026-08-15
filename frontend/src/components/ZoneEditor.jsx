@@ -6,12 +6,11 @@ import {
   Trash2,
   Clock,
   UserCheck,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  X,
   Check,
+  X,
 } from 'lucide-react'
+
+
 
 // Available rules for zones (per CONTRACT.md - fall is never a zone rule)
 const AVAILABLE_RULES = [
@@ -173,7 +172,7 @@ export default function ZoneEditor({
         ctx.setLineDash([])
 
         // Draw point handles with mono coordinate readouts
-        points.forEach(([x, y], idx) => {
+        points.forEach(([x, y]) => {
           ctx.beginPath()
           ctx.arc(x, y, 5, 0, 2 * Math.PI)
           ctx.fillStyle = '#f5a623'

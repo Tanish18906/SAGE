@@ -27,7 +27,6 @@ function SecureMark({ className = '' }) {
 export default function AlertFeed({
   alerts = [],
   onClear = null,
-  onSimulateTestAlert = null,
   apiBaseUrl = 'http://localhost:8000',
 }) {
   const [selectedSnapshot, setSelectedSnapshot] = useState(null)
