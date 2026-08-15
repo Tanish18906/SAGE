@@ -3,7 +3,7 @@
 
 ---
 
-## 🔵 CURRENT PHASE: Phase 0 — Contract + Skeleton
+## 🔵 CURRENT PHASE: Phase 1 — After-Hours Restricted Presence (+ Zone Tool)
 *(Update this line yourself as you progress. This is the first thing a fresh agent session should read.)*
 
 ---
