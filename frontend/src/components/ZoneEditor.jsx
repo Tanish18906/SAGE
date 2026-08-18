@@ -52,6 +52,7 @@ export default function ZoneEditor({
 }) {
   const canvasRef = useRef(null)
   const [capturedFrame, setCapturedFrame] = useState(null)
+  const [canvasDim, setCanvasDim] = useState({ width: 640, height: 480 })
   const [points, setPoints] = useState([])
   const [zoneName, setZoneName] = useState('')
   const [selectedRules, setSelectedRules] = useState(['after_hours'])
@@ -194,18 +195,16 @@ export default function ZoneEditor({
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     if (capturedFrame) {
       const img = new Image()
       img.onload = () => {
         if (img.naturalWidth && img.naturalHeight) {
-          if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
-            canvas.width = img.naturalWidth
-            canvas.height = img.naturalHeight
+          if (canvasDim.width !== img.naturalWidth || canvasDim.height !== img.naturalHeight) {
+            setCanvasDim({ width: img.naturalWidth, height: img.naturalHeight })
           }
         }
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         renderOverlays(ctx)
       }
@@ -227,7 +226,7 @@ export default function ZoneEditor({
       ctx.textAlign = 'start'
       renderOverlays(ctx)
     }
-  }, [capturedFrame, renderOverlays])
+  }, [capturedFrame, renderOverlays, canvasDim])
 
   useEffect(() => {
     drawCanvas()
@@ -238,32 +237,33 @@ export default function ZoneEditor({
       setCapturedFrame(currentFrameBase64)
       setStatusMessage({ type: 'success', text: 'Live frame captured for zone calibration.' })
     } else {
-      // Create a test calibration canvas
+      // Create a test calibration canvas (640x480)
       const testCanvas = document.createElement('canvas')
-      testCanvas.width = 1280
-      testCanvas.height = 720
+      testCanvas.width = 640
+      testCanvas.height = 480
       const ctx = testCanvas.getContext('2d')
       ctx.fillStyle = '#0e0e10'
-      ctx.fillRect(0, 0, 1280, 720)
+      ctx.fillRect(0, 0, 640, 480)
       ctx.strokeStyle = '#232326'
       ctx.lineWidth = 1
-      for (let x = 0; x < 1280; x += 40) {
+      for (let x = 0; x < 640; x += 40) {
         ctx.beginPath()
         ctx.moveTo(x, 0)
-        ctx.lineTo(x, 720)
+        ctx.lineTo(x, 480)
         ctx.stroke()
       }
-      for (let y = 0; y < 720; y += 40) {
+      for (let y = 0; y < 480; y += 40) {
         ctx.beginPath()
         ctx.moveTo(0, y)
-        ctx.lineTo(1280, y)
+        ctx.lineTo(640, y)
         ctx.stroke()
       }
       ctx.fillStyle = '#7a7a7d'
       ctx.font = '14px "JetBrains Mono", monospace'
-      ctx.fillText('CALIBRATION GRID [1280x720] // READY FOR POLYGON PLOT', 24, 36)
+      ctx.fillText('CALIBRATION GRID [640x480] // READY FOR POLYGON PLOT', 24, 36)
       const b64 = testCanvas.toDataURL('image/jpeg').replace(/^data:image\/jpeg;base64,/, '')
       setCapturedFrame(b64)
+      setCanvasDim({ width: 640, height: 480 })
       setStatusMessage({ type: 'success', text: 'Calibration grid frame ready.' })
     }
   }
@@ -272,8 +272,8 @@ export default function ZoneEditor({
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
+    const scaleX = canvasDim.width / rect.width
+    const scaleY = canvasDim.height / rect.height
 
     const x = Math.round((e.clientX - rect.left) * scaleX)
     const y = Math.round((e.clientY - rect.top) * scaleY)
@@ -460,8 +460,8 @@ export default function ZoneEditor({
           <div className="relative border border-hairline rounded overflow-hidden bg-recessed shadow-inner">
             <canvas
               ref={canvasRef}
-              width={1280}
-              height={720}
+              width={canvasDim.width}
+              height={canvasDim.height}
               onClick={handleCanvasClick}
               className="w-full h-auto cursor-crosshair block"
             />
