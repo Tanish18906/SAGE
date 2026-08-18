@@ -1,24 +1,12 @@
 [
   {
-    "zone_id": "cafe",
-    "name": "CAFE",
+    "zone_id": "hostel_gate",
+    "name": "HOSTEL GATE",
     "polygon": [
-      [
-        95,
-        139
-      ],
-      [
-        245,
-        136
-      ],
-      [
-        105,
-        279
-      ],
-      [
-        243,
-        271
-      ]
+      [300, 100],
+      [600, 100],
+      [600, 450],
+      [300, 450]
     ],
     "rules": [
       "after_hours",
