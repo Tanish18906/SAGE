@@ -62,9 +62,9 @@ def is_person_in_zone(box, polygon):
     return False
 
 
-# Restricted window spans midnight: 21:00 (9 PM) through 06:00 (6 AM) the next day.
-AFTER_HOURS_START = time(21, 0)
-AFTER_HOURS_END = time(6, 0)
+# Restricted window: 09:00 (9 AM) through 18:00 (6 PM).
+AFTER_HOURS_START = time(9, 0)
+AFTER_HOURS_END = time(18, 0)
 
 # Minimum time between repeated after-hours alerts for the same (tracked_id, zone_id).
 ALERT_COOLDOWN_SECONDS = 60
