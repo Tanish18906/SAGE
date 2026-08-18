@@ -1,12 +1,12 @@
 [
   {
-    "zone_id": "hostel_corridor",
-    "name": "HOSTEL CORRIDOR",
+    "zone_id": "monitored_zone",
+    "name": "HOSTEL MONITORED ZONE",
     "polygon": [
-      [300, 150],
-      [980, 150],
-      [980, 680],
-      [300, 680]
+      [50, 40],
+      [1230, 40],
+      [1230, 700],
+      [50, 700]
     ],
     "rules": [
       "after_hours",
