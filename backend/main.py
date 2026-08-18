@@ -12,9 +12,13 @@ import threading
 from typing import List, Optional, Set
 import uuid
 
+from dotenv import load_dotenv
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+load_dotenv(_REPO_ROOT / "backend" / ".env")
 
 if __name__ in ("main", "__main__"):
     try:
