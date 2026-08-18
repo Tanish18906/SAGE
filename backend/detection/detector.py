@@ -233,11 +233,17 @@ class HighSpeedDetector:
 
 
 def capture_loop(show_window: bool = True, stop_event: threading.Event = None):
-    cap, source = open_capture()
-    is_video = not isinstance(source, int) and not str(source).startswith("http")
-    print(f"Camera opened (source={source}, is_video={is_video}). Real-time stream started...")
-    engine = HighSpeedDetector(cap, show_window=show_window, stop_event=stop_event, is_video=is_video)
-    engine.run()
+    stop_event = stop_event or threading.Event()
+    while not stop_event.is_set():
+        try:
+            cap, source = open_capture()
+            is_video = not isinstance(source, int) and not str(source).startswith("http")
+            print(f"Camera opened (source={source}, is_video={is_video}). Real-time stream started...")
+            engine = HighSpeedDetector(cap, show_window=show_window, stop_event=stop_event, is_video=is_video)
+            engine.run()
+        except Exception as e:
+            print(f"[Detector] Camera connection error: {e}. Retrying in 1.5s...")
+            time.sleep(1.5)
 
 
 
