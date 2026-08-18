@@ -96,20 +96,61 @@ import time
 import math
 
 
+class FreshFrameGrabber:
+    """Dedicated background reader that continuously flushes socket buffers for true 0ms video lag."""
+    def __init__(self, cap):
+        self.cap = cap
+        self.lock = threading.Lock()
+        self.latest_frame = None
+        self.running = True
+        self.thread = threading.Thread(target=self._reader, daemon=True, name="FreshFrameGrabber")
+        self.thread.start()
+
+    def _reader(self):
+        while self.running:
+            try:
+                if not self.cap.grab():
+                    time.sleep(0.002)
+                    continue
+                ret, frame = self.cap.retrieve()
+                if ret and frame is not None:
+                    with self.lock:
+                        self.latest_frame = frame
+            except Exception:
+                time.sleep(0.005)
+
+    def read(self):
+        with self.lock:
+            if self.latest_frame is not None:
+                return True, self.latest_frame
+        return False, None
+
+    def release(self):
+        self.running = False
+        try:
+            self.cap.release()
+        except Exception:
+            pass
+
+
 class HighSpeedDetector:
     """
     Decoupled vision engine:
-    - Thread 1 (Stream Loop): Grabs camera frames continuously at 30-60 FPS and pushes directly to stream.
-    - Thread 2 (Inference Worker): Runs YOLOv8 (imgsz=320) + DeepSORT in background without stalling the stream.
+    - Thread 1 (Fresh Frame Grabber): Continuously drains socket buffers for true 0ms video lag.
+    - Thread 2 (Stream Loop): Pushes newest frames continuously at full camera frame rate.
+    - Thread 3 (Inference Worker): Runs YOLOv8 + DeepSORT in background without stalling the stream.
     """
 
     def __init__(self, cap, show_window: bool = False, stop_event: threading.Event = None, is_video: bool = False):
-        self.cap = cap
         self.is_video = is_video
-        try:
-            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        except Exception:
-            pass
+        if not is_video:
+            self.cap = FreshFrameGrabber(cap)
+        else:
+            self.cap = cap
+            try:
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            except Exception:
+                pass
         self.show_window = show_window
         self.stop_event = stop_event or threading.Event()
         self.model = YOLO(YOLO_MODEL_PATH)
