@@ -182,12 +182,27 @@ def push_frame(frame: np.ndarray, detections: list = None):
         if w > 640:
             scale = 640.0 / w
             stream_frame = cv2.resize(frame, (640, int(h * scale)), interpolation=cv2.INTER_LINEAR)
+            scaled_dets = []
+            if detections:
+                for d in detections:
+                    box = d.get("box", {})
+                    scaled_dets.append({
+                        "tracked_id": d.get("tracked_id"),
+                        "box": {
+                            "x": int(box.get("x", 0) * scale),
+                            "y": int(box.get("y", 0) * scale),
+                            "width": int(box.get("width", 0) * scale),
+                            "height": int(box.get("height", 0) * scale),
+                        }
+                    })
+            current_dets = scaled_dets
         else:
             stream_frame = frame
+            current_dets = detections or []
         _, buffer = cv2.imencode(".jpg", stream_frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
         b64 = base64.b64encode(buffer).decode("utf-8")
         _latest_frame_state["image_base64"] = b64
-        _latest_frame_state["detections"] = detections or []
+        _latest_frame_state["detections"] = current_dets
         _latest_frame_state["timestamp"] = datetime.now(timezone.utc).isoformat()
     except Exception:
         pass

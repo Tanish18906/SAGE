@@ -15,36 +15,29 @@ function elapsedShort(isoTimestamp) {
   return `-${Math.floor(diffSec / 60)}m`
 }
 
-// Four short corner marks implying a box, not a solid rectangle — the reticle itself
-// inherits its color from the wrapping element via currentColor
-function TrackReticle({ x, y, width, height, scale, colorClass, label }) {
+function TrackReticle({ x, y, width, height, scale, boxBorder, boxBg, badgeBg, badgeText, label }) {
   const left = x * scale
   const top = y * scale
-  const w = Math.max(width * scale, 8)
-  const h = Math.max(height * scale, 8)
-  const bracket = Math.max(8, Math.min(16, w / 3, h / 3))
-
-  const corners = [
-    { left: -2, top: -2, borderTopWidth: 2, borderLeftWidth: 2 },
-    { right: -2, top: -2, borderTopWidth: 2, borderRightWidth: 2 },
-    { left: -2, bottom: -2, borderBottomWidth: 2, borderLeftWidth: 2 },
-    { right: -2, bottom: -2, borderBottomWidth: 2, borderRightWidth: 2 },
-  ]
+  const w = Math.max(width * scale, 16)
+  const h = Math.max(height * scale, 16)
 
   return (
     <div
-      className={`absolute pointer-events-none transition-colors duration-300 ${colorClass}`}
+      className={`absolute pointer-events-none transition-all duration-75 border-2 rounded-xs ${boxBorder} ${boxBg}`}
       style={{ left, top, width: w, height: h }}
     >
-      {corners.map((style, i) => (
-        <span
-          key={i}
-          className="absolute border-current border-solid"
-          style={{ width: bracket, height: bracket, ...style }}
-        />
-      ))}
+      {/* Corner Bracket Accents */}
+      <span className="absolute -top-1 -left-1 w-2.5 h-2.5 border-t-2 border-l-2 border-current" />
+      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 border-t-2 border-r-2 border-current" />
+      <span className="absolute -bottom-1 -left-1 w-2.5 h-2.5 border-b-2 border-l-2 border-current" />
+      <span className="absolute -bottom-1 -right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-current" />
+
+      {/* Track ID & Status Badge */}
       {label && (
-        <div className="absolute -top-[17px] left-0 font-mono text-telemetry font-semibold tracking-wide whitespace-nowrap [text-shadow:0_1px_3px_rgba(0,0,0,0.95)]">
+        <div
+          className={`absolute -top-6 left-0 px-2 py-0.5 rounded-xs font-mono text-[11px] font-bold tracking-wide whitespace-nowrap shadow-lg flex items-center gap-1.5 ${badgeBg} ${badgeText}`}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-current animate-ping" />
           {label}
         </div>
       )}
@@ -333,24 +326,41 @@ export default function LiveFeed({
             </svg>
           )}
 
-          {/* Tracking Reticles — the signature element */}
+          {/* Tracking Bounding Boxes & Reticles */}
           {showOverlays && scale > 0 && imageSrc && connectionStatus !== 'camera_disconnected' && (
             <>
               {detections.map((d) => {
                 if (!d.box) return null
                 const activeAlert = activeAlertByTrackedId.get(d.tracked_id)
-                const colorClass = activeAlert
-                  ? activeAlert.alert_type === 'fall'
-                    ? 'text-red'
-                    : activeAlert.alert_type === 'loitering'
-                    ? 'text-cyan'
-                    : 'text-amber'
-                  : 'text-text-primary/80'
-                const label = activeAlert
-                  ? `ID·${String(d.tracked_id).padStart(2, '0')} · ${
-                      activeAlert.zone_id ? activeAlert.zone_id.toUpperCase() + ' · ' : ''
-                    }${elapsedShort(activeAlert.timestamp)}`
-                  : `ID·${String(d.tracked_id).padStart(2, '0')}`
+
+                let boxBorder = 'border-emerald-400'
+                let boxBg = 'bg-emerald-500/15 shadow-[0_0_15px_rgba(16,185,129,0.35)]'
+                let badgeBg = 'bg-emerald-500'
+                let badgeText = 'text-black'
+                let label = `PERSON ID·${String(d.tracked_id).padStart(2, '0')}`
+
+                if (activeAlert) {
+                  if (activeAlert.alert_type === 'fall') {
+                    boxBorder = 'border-red animate-pulse'
+                    boxBg = 'bg-red/25 shadow-[0_0_20px_rgba(224,57,62,0.6)]'
+                    badgeBg = 'bg-red'
+                    badgeText = 'text-white'
+                    label = `FALL DETECTED · ID·${String(d.tracked_id).padStart(2, '0')}`
+                  } else if (activeAlert.alert_type === 'loitering') {
+                    boxBorder = 'border-cyan'
+                    boxBg = 'bg-cyan/20 shadow-[0_0_18px_rgba(34,196,224,0.5)]'
+                    badgeBg = 'bg-cyan'
+                    badgeText = 'text-black'
+                    label = `LOITERING · ID·${String(d.tracked_id).padStart(2, '0')}`
+                  } else {
+                    boxBorder = 'border-amber'
+                    boxBg = 'bg-amber/20 shadow-[0_0_18px_rgba(245,166,35,0.5)]'
+                    badgeBg = 'bg-amber'
+                    badgeText = 'text-black'
+                    label = `AFTER-HOURS · ID·${String(d.tracked_id).padStart(2, '0')}`
+                  }
+                }
+
                 return (
                   <TrackReticle
                     key={d.tracked_id}
@@ -359,7 +369,10 @@ export default function LiveFeed({
                     width={d.box.width}
                     height={d.box.height}
                     scale={scale}
-                    colorClass={colorClass}
+                    boxBorder={boxBorder}
+                    boxBg={boxBg}
+                    badgeBg={badgeBg}
+                    badgeText={badgeText}
                     label={label}
                   />
                 )
