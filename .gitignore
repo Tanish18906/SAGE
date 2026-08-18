@@ -17,6 +17,10 @@ __pycache__/
 venv/
 ENV/
 *.pt
+*.part
+*.mp4
+*.avi
+scratch*
 
 
 # Database & Snapshots
