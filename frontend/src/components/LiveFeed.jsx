@@ -294,6 +294,8 @@ export default function LiveFeed({
                 const colorClass = activeAlert
                   ? activeAlert.alert_type === 'fall'
                     ? 'text-red'
+                    : activeAlert.alert_type === 'loitering'
+                    ? 'text-cyan'
                     : 'text-amber'
                   : 'text-text-primary/80'
                 const label = activeAlert
