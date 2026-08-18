@@ -172,9 +172,15 @@ def pop_alert_nowait() -> Optional[dict]:
 
 
 def push_frame(frame: np.ndarray, detections: list = None):
-    """Called by the detection loop to update the latest live frame for streaming."""
+    """Called by the detection loop to update the latest live frame for low-latency streaming."""
     try:
-        _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        h, w = frame.shape[:2]
+        if w > 640:
+            scale = 640.0 / w
+            stream_frame = cv2.resize(frame, (640, int(h * scale)), interpolation=cv2.INTER_AREA)
+        else:
+            stream_frame = frame
+        _, buffer = cv2.imencode(".jpg", stream_frame, [cv2.IMWRITE_JPEG_QUALITY, 55])
         b64 = base64.b64encode(buffer).decode("utf-8")
         _latest_frame_state["image_base64"] = b64
         _latest_frame_state["detections"] = detections or []
