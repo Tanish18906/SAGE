@@ -1,6 +1,7 @@
 import os
 import sys
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import cv2
@@ -37,12 +38,27 @@ def _get_camera_source():
     return source_env
 
 
+_SIM_START_WALL_TIME = None
+_SIM_BASE_TIME = None
+
+
 def _current_time():
+    global _SIM_START_WALL_TIME, _SIM_BASE_TIME
     load_dotenv(_ENV_PATH, override=True)
-    sim_time = os.getenv("SIMULATED_TIME", "")
-    if sim_time:
-        return datetime.fromisoformat(sim_time)
-    return datetime.now().astimezone()
+    sim_time_str = os.getenv("SIMULATED_TIME", "").strip()
+    if not sim_time_str:
+        return datetime.now().astimezone()
+    
+    try:
+        parsed_base = datetime.fromisoformat(sim_time_str)
+        if _SIM_BASE_TIME != parsed_base or _SIM_START_WALL_TIME is None:
+            _SIM_BASE_TIME = parsed_base
+            _SIM_START_WALL_TIME = time.time()
+        
+        elapsed_seconds = time.time() - _SIM_START_WALL_TIME
+        return _SIM_BASE_TIME + timedelta(seconds=elapsed_seconds)
+    except Exception:
+        return datetime.now().astimezone()
 
 
 YOLO_MODEL_PATH = "yolov8n.pt"
