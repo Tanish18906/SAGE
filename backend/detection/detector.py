@@ -41,9 +41,17 @@ PERSON_CLASS_ID = 0
 
 def open_capture():
     source = _get_camera_source()
-    cap = cv2.VideoCapture(source)
-    if cap.isOpened():
-        return cap, source
+    if isinstance(source, int):
+        cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+        if cap.isOpened():
+            return cap, source
+        cap = cv2.VideoCapture(source)
+        if cap.isOpened():
+            return cap, source
+    else:
+        cap = cv2.VideoCapture(source)
+        if cap.isOpened():
+            return cap, source
 
     fallback = os.getenv("FALLBACK_VIDEO_PATH", "")
     if fallback:
@@ -161,11 +169,7 @@ class HighSpeedDetector:
 
         try:
             while self.running and not self.stop_event.is_set():
-                if not self.cap.grab():
-                    time.sleep(0.005)
-                    continue
-
-                ret, frame = self.cap.retrieve()
+                ret, frame = self.cap.read()
                 if not ret or frame is None:
                     time.sleep(0.005)
                     continue
