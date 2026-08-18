@@ -1,12 +1,12 @@
 [
   {
-    "zone_id": "hostel_gate",
-    "name": "HOSTEL GATE",
+    "zone_id": "hostel_corridor",
+    "name": "HOSTEL CORRIDOR",
     "polygon": [
-      [300, 100],
-      [600, 100],
-      [600, 450],
-      [300, 450]
+      [150, 100],
+      [520, 100],
+      [520, 440],
+      [150, 440]
     ],
     "rules": [
       "after_hours",
