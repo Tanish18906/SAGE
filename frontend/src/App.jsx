@@ -9,6 +9,7 @@ import BottomNavBar from './components/BottomNavBar'
 export default function App() {
   const [activeTab, setActiveTab] = useState('live') // 'live' | 'zones' | 'history'
   const [lastFrameBase64, setLastFrameBase64] = useState(null)
+  const [alerts, setAlerts] = useState([])
   const [zones, setZones] = useState([])
   const [connectionState, setConnectionState] = useState('connected')
 
