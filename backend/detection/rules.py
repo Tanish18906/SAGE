@@ -13,33 +13,50 @@ def is_person_in_zone(box, polygon):
     box: (left, top, right, bottom) — a tracked person's bounding box.
     polygon: [[x, y], ...] — a saved zone polygon.
 
-    Uses the box's bottom-center (feet) point as the person's ground position,
-    and cv2.pointPolygonTest to check if that point falls inside the polygon.
+    Evaluates key anatomical anchors (feet, torso center, head, and waist edges)
+    against the zone polygon so that standing, seated, or upper-body camera angles
+    reliably trigger alerts.
     """
+    if not polygon or len(polygon) < 3:
+        return False
+
     left, top, right, bottom = box
-    foot_x = (left + right) / 2
-    foot_y = bottom
+    cx = (left + right) / 2.0
+    cy = (top + bottom) / 2.0
+
+    test_points = [
+        (cx, bottom),        # Feet / ground position
+        (cx, cy),            # Torso / center mass
+        (cx, top),           # Head
+        (left, cy),          # Left body edge
+        (right, cy),         # Right body edge
+    ]
 
     if cv2 is not None:
         polygon_np = np.array(polygon, dtype=np.int32)
-        result = cv2.pointPolygonTest(polygon_np, (foot_x, foot_y), False)
-        return result >= 0
+        for px, py in test_points:
+            if cv2.pointPolygonTest(polygon_np, (float(px), float(py)), False) >= 0:
+                return True
+        return False
 
-    # Robust pure Python / NumPy point-in-polygon ray-casting algorithm fallback
+    # Pure Python / NumPy ray-casting fallback across all test points
     n = len(polygon)
-    inside = False
-    p1x, p1y = polygon[0]
-    for i in range(n + 1):
-        p2x, p2y = polygon[i % n]
-        if foot_y > min(p1y, p2y):
-            if foot_y <= max(p1y, p2y):
-                if foot_x <= max(p1x, p2x):
-                    if p1y != p2y:
-                        xinters = (foot_y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                    if p1x == p2x or foot_x <= xinters:
-                        inside = not inside
-        p1x, p1y = p2x, p2y
-    return inside
+    for px, py in test_points:
+        inside = False
+        p1x, p1y = polygon[0]
+        for i in range(n + 1):
+            p2x, p2y = polygon[i % n]
+            if py > min(p1y, p2y):
+                if py <= max(p1y, p2y):
+                    if px <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xinters = (py - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or px <= xinters:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+        if inside:
+            return True
+    return False
 
 
 # Restricted window spans midnight: 21:00 (9 PM) through 06:00 (6 AM) the next day.
