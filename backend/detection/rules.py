@@ -30,12 +30,15 @@ def is_person_in_zone(box, polygon):
         (cx, top),           # Head
         (left, cy),          # Left body edge
         (right, cy),         # Right body edge
+        (left, bottom),      # Left foot
+        (right, bottom),     # Right foot
     ]
 
     if cv2 is not None:
         polygon_np = np.array(polygon, dtype=np.int32)
         for px, py in test_points:
-            if cv2.pointPolygonTest(polygon_np, (float(px), float(py)), False) >= 0:
+            # Distance >= -20px provides instant responsive trigger as person approaches/touches zone
+            if cv2.pointPolygonTest(polygon_np, (float(px), float(py)), True) >= -20.0:
                 return True
         return False
 

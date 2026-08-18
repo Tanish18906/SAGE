@@ -113,7 +113,7 @@ class HighSpeedDetector:
         self.show_window = show_window
         self.stop_event = stop_event or threading.Event()
         self.model = YOLO(YOLO_MODEL_PATH)
-        self.tracker = DeepSort(max_age=20, n_init=2, half=True, bgr=True)
+        self.tracker = DeepSort(max_age=20, n_init=1, half=True, bgr=True)
 
         self.latest_frame = None
         self.latest_detections = []

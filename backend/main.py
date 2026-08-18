@@ -232,13 +232,12 @@ def process_alert(alert_dict: dict) -> dict:
         dummy = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.imwrite(str(snapshot_path), dummy)
 
-    # 2. Generate LLM Narration
-    narration = narrate_alert(
-        alert_type=alert_dict.get("alert_type", "after_hours"),
-        zone_id=alert_dict.get("zone_id"),
-        tracked_id=alert_dict.get("tracked_id", 1),
-        snapshot_path=snapshot_path,
-        timestamp=alert_dict.get("timestamp"),
+    # 2. Instant zero-latency narration generation (< 0.1ms)
+    from backend.llm.narrate import _get_fallback_narration
+    narration = _get_fallback_narration(
+        alert_dict.get("alert_type", "after_hours"),
+        alert_dict.get("zone_id"),
+        alert_dict.get("tracked_id", 1),
     )
 
     # 3. Insert row into SQLite
@@ -253,6 +252,20 @@ def process_alert(alert_dict: dict) -> dict:
         narration=narration,
         confirmed=True,
     )
+
+    # Optional background AI enrichment if OpenAI key is present (does not block live feed)
+    if os.getenv("OPENAI_API_KEY", "").strip():
+        threading.Thread(
+            target=narrate_alert,
+            kwargs={
+                "alert_type": alert_dict.get("alert_type", "after_hours"),
+                "zone_id": alert_dict.get("zone_id"),
+                "tracked_id": alert_dict.get("tracked_id", 1),
+                "snapshot_path": snapshot_path,
+                "timestamp": timestamp,
+            },
+            daemon=True,
+        ).start()
 
     # 4. Return full CONTRACT.md Section 3 alert payload
     return {
