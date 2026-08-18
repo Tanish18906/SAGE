@@ -34,9 +34,9 @@ export default function AlertCard({
   const isLoitering = alert.alert_type === 'loitering'
   const isAfterHours = alert.alert_type === 'after_hours'
 
-  // Snapshot URL resolution
-  let snapshotSrc = null
-  if (alert.snapshot_url) {
+  // Snapshot URL resolution (zero-latency base64 preview or HTTP URL)
+  let snapshotSrc = alert.snapshot_b64 || null
+  if (!snapshotSrc && alert.snapshot_url) {
     if (alert.snapshot_url.startsWith('http') || alert.snapshot_url.startsWith('data:')) {
       snapshotSrc = alert.snapshot_url
     } else {

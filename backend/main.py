@@ -224,10 +224,19 @@ def process_alert(alert_dict: dict) -> dict:
     snapshot_path = SNAPSHOTS_DIR / snapshot_filename
     snapshot_url = f"/snapshots/{snapshot_filename}"
 
-    # 1. Save frame snapshot
+    # 1. Save frame snapshot & generate instant zero-latency base64 preview
     raw_frame = alert_dict.get("frame")
+    snapshot_b64 = None
     if raw_frame is not None and isinstance(raw_frame, np.ndarray):
         cv2.imwrite(str(snapshot_path), raw_frame)
+        h, w = raw_frame.shape[:2]
+        if w > 480:
+            scale = 480.0 / w
+            preview_frame = cv2.resize(raw_frame, (480, int(h * scale)), interpolation=cv2.INTER_LINEAR)
+        else:
+            preview_frame = raw_frame
+        _, buf = cv2.imencode(".jpg", preview_frame, [cv2.IMWRITE_JPEG_QUALITY, 55])
+        snapshot_b64 = f"data:image/jpeg;base64,{base64.b64encode(buf).decode('utf-8')}"
     else:
         dummy = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.imwrite(str(snapshot_path), dummy)
@@ -267,7 +276,7 @@ def process_alert(alert_dict: dict) -> dict:
             daemon=True,
         ).start()
 
-    # 4. Return full CONTRACT.md Section 3 alert payload
+    # 4. Return full CONTRACT.md Section 3 alert payload with instant snapshot_b64
     return {
         "type": "alert",
         "id": alert_id,
@@ -276,6 +285,7 @@ def process_alert(alert_dict: dict) -> dict:
         "tracked_id": alert_dict.get("tracked_id", 1),
         "timestamp": timestamp,
         "snapshot_url": snapshot_url,
+        "snapshot_b64": snapshot_b64,
         "narration": narration,
         "confirmed": True,
     }
