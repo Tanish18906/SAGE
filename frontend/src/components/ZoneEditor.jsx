@@ -196,11 +196,16 @@ export default function ZoneEditor({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
     if (capturedFrame) {
       const img = new Image()
       img.onload = () => {
+        if (img.naturalWidth && img.naturalHeight) {
+          if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+            canvas.width = img.naturalWidth
+            canvas.height = img.naturalHeight
+          }
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         renderOverlays(ctx)
       }
@@ -208,6 +213,7 @@ export default function ZoneEditor({
         ? capturedFrame
         : `data:image/jpeg;base64,${capturedFrame}`
     } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
       ctx.fillStyle = '#0e0e10'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
       ctx.fillStyle = '#7a7a7d'
@@ -304,15 +310,18 @@ export default function ZoneEditor({
   const handleSaveZone = async (e) => {
     e.preventDefault()
     if (!zoneName.trim()) {
-      setStatusMessage({ type: 'error', text: 'Please enter a name for the zone.' })
+      setStatusMessage({ type: 'error', text: 'Please enter a name for the zone (e.g. "Booth_Front_Zone") in the text input.' })
       return
     }
     if (points.length < 3) {
-      setStatusMessage({ type: 'error', text: 'A zone polygon requires at least 3 points.' })
+      setStatusMessage({
+        type: 'error',
+        text: `A zone polygon requires at least 3 vertices. Please click on the camera frame canvas to plot your polygon (currently: ${points.length} points).`,
+      })
       return
     }
     if (selectedRules.length === 0) {
-      setStatusMessage({ type: 'error', text: 'Please select at least one rule for this zone.' })
+      setStatusMessage({ type: 'error', text: 'Please select at least one detection rule (After-Hours or Loitering).' })
       return
     }
 
@@ -615,12 +624,45 @@ export default function ZoneEditor({
                 </div>
               </div>
 
+              {/* Validation Readiness Checklist */}
+              <div className="bg-recessed border border-hairline rounded p-2.5 flex flex-col gap-1.5 text-[11px] font-sans">
+                <div className="flex items-center justify-between">
+                  <span className="text-text-secondary">1. Zone Name:</span>
+                  <span className={zoneName.trim() ? 'text-green font-mono font-semibold' : 'text-amber'}>
+                    {zoneName.trim() ? `✓ ${zoneName.trim()}` : 'Required'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-text-secondary">2. Polygon Vertices:</span>
+                  <span className={points.length >= 3 ? 'text-green font-mono font-semibold' : 'text-amber'}>
+                    {points.length >= 3 ? `✓ ${points.length} points` : `Plot on canvas (${points.length}/3)`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-text-secondary">3. Active Rules:</span>
+                  <span className={selectedRules.length > 0 ? 'text-green font-mono font-semibold' : 'text-amber'}>
+                    {selectedRules.length > 0 ? `✓ ${selectedRules.length} selected` : 'Select ≥ 1 rule'}
+                  </span>
+                </div>
+              </div>
+
               <button
                 type="submit"
-                disabled={loading || points.length < 3 || !zoneName.trim()}
-                className="w-full py-2 bg-text-primary hover:bg-white text-base disabled:opacity-40 font-sans font-bold text-xs uppercase tracking-wider rounded transition-colors shadow-lg cursor-pointer"
+                disabled={loading}
+                className={`w-full py-2.5 font-sans font-bold text-xs uppercase tracking-wider rounded transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer ${
+                  points.length >= 3 && zoneName.trim() && selectedRules.length > 0
+                    ? 'bg-amber text-black hover:bg-amber/90 active:scale-[0.99]'
+                    : 'bg-panel-highest border border-hairline-bright text-text-secondary hover:text-text-primary hover:border-amber/50'
+                }`}
               >
-                {loading ? 'Saving Polygon...' : 'Save Zone Polygon'}
+                {loading ? (
+                  <span>Saving Polygon...</span>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Save Zone Polygon</span>
+                  </>
+                )}
               </button>
             </form>
           </div>
