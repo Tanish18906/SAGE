@@ -3,6 +3,7 @@ import {
   AlertOctagon,
   Clock,
   UserCheck,
+  Timer,
   Maximize2,
   Check,
   Send,
@@ -30,6 +31,7 @@ export default function AlertCard({
   const [dispatched, setDispatched] = useState(false)
 
   const isFall = alert.alert_type === 'fall'
+  const isLoitering = alert.alert_type === 'loitering'
   const isAfterHours = alert.alert_type === 'after_hours'
 
   // Snapshot URL resolution
@@ -42,9 +44,9 @@ export default function AlertCard({
     }
   }
 
-  // Formatting display time
   const elapsed = formatElapsedTime(alert.timestamp)
 
+  // ─── FALL — Critical red card ──────────────────────────────────────────────
   if (isFall) {
     return (
       <div className="bg-panel border border-red/50 relative pl-1 overflow-hidden group shadow-lg transition-all">
@@ -112,13 +114,9 @@ export default function AlertCard({
                   }`}
                 >
                   {dispatched ? (
-                    <>
-                      <Check className="w-2.5 h-2.5" /> DISPATCHED
-                    </>
+                    <><Check className="w-2.5 h-2.5" /> DISPATCHED</>
                   ) : (
-                    <>
-                      <Send className="w-2.5 h-2.5" /> DISPATCH
-                    </>
+                    <><Send className="w-2.5 h-2.5" /> DISPATCH</>
                   )}
                 </button>
 
@@ -141,9 +139,61 @@ export default function AlertCard({
     )
   }
 
-  // Warning Cards (After-Hours / Loitering)
-  const Icon = isAfterHours ? Clock : UserCheck
+  // ─── LOITERING — Cyan / teal sustained-presence card ──────────────────────
+  if (isLoitering) {
+    return (
+      <div className="bg-panel border border-cyan/40 hover:border-cyan/70 relative pl-1 overflow-hidden group transition-all shadow-sm">
+        {/* Left Cyan Bar */}
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan" />
 
+        <div className="p-3">
+          {/* Card Top: Badge + ID + Elapsed Time */}
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex items-center gap-2">
+              <div className="bg-cyan/10 text-cyan px-1.5 py-0.5 border border-cyan/30 flex items-center gap-1 rounded-xs">
+                <Timer className="w-3 h-3 text-cyan" />
+                <span className="font-sans text-[9px] font-bold tracking-wider">LOITERING</span>
+              </div>
+              <span className="font-mono text-telemetry text-text-secondary">
+                ID: {String(alert.tracked_id || '12').padStart(2, '0')}
+              </span>
+            </div>
+
+            <span className="font-mono text-telemetry text-cyan">{elapsed}</span>
+          </div>
+
+          {/* Headline Narration */}
+          <h3 className="font-sans font-semibold text-[13px] leading-snug text-text-primary mb-1.5">
+            {alert.narration || 'Person loitering in restricted pathway beyond dwell threshold.'}
+          </h3>
+
+          {/* Thumbnail Preview & Subtitle */}
+          <div className="flex gap-2.5 items-center">
+            {snapshotSrc && (
+              <div
+                onClick={() => onOpenSnapshot && onOpenSnapshot(snapshotSrc)}
+                className="w-14 h-10 bg-recessed border border-hairline shrink-0 relative overflow-hidden rounded-xs cursor-pointer group/thumb"
+              >
+                <img
+                  src={snapshotSrc}
+                  alt="Evidence thumbnail"
+                  className="w-full h-full object-cover grayscale opacity-90 group-hover/thumb:scale-105 transition-transform"
+                />
+              </div>
+            )}
+
+            <span className="font-sans text-[11px] text-text-secondary leading-snug block flex-1">
+              {alert.zone_id
+                ? `Zone: ${alert.zone_id} | Dwell threshold exceeded.`
+                : 'Dwell time > threshold in monitored zone.'}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── AFTER-HOURS — Amber access-violation card ─────────────────────────────
   return (
     <div className="bg-panel border border-amber/40 hover:border-amber/70 relative pl-1 overflow-hidden group transition-all shadow-sm">
       {/* Left Amber Bar */}
@@ -154,11 +204,11 @@ export default function AlertCard({
         <div className="flex justify-between items-start mb-2">
           <div className="flex items-center gap-2">
             <div className="bg-amber/15 text-amber px-1.5 py-0.5 border border-amber/30 flex items-center gap-1 rounded-xs">
-              <Icon className="w-3 h-3 text-amber" />
-              <span className="font-sans text-[9px] font-bold tracking-wider">WARNING</span>
+              <Clock className="w-3 h-3 text-amber" />
+              <span className="font-sans text-[9px] font-bold tracking-wider">AFTER-HOURS</span>
             </div>
             <span className="font-mono text-telemetry text-text-secondary">
-              ID: {String(alert.tracked_id || (isAfterHours ? '04' : '12')).padStart(2, '0')}
+              ID: {String(alert.tracked_id || '04').padStart(2, '0')}
             </span>
           </div>
 
@@ -167,10 +217,7 @@ export default function AlertCard({
 
         {/* Headline Narration */}
         <h3 className="font-sans font-semibold text-[13px] leading-snug text-text-primary mb-1.5">
-          {alert.narration ||
-            (isAfterHours
-              ? 'Person detected inside hostel gate zone after hours'
-              : 'Person loitering in restricted pathway beyond threshold')}
+          {alert.narration || 'Person detected inside hostel gate zone after hours.'}
         </h3>
 
         {/* Thumbnail Preview & Subtitle */}
@@ -190,13 +237,12 @@ export default function AlertCard({
 
           <span className="font-sans text-[11px] text-text-secondary leading-snug block flex-1">
             {alert.zone_id
-              ? `Zone: ${alert.zone_id} | Security threshold exceeded.`
-              : isAfterHours
-              ? 'Unauthorized access attempt in Zone: South_Gate_B.'
-              : 'Dwell time >5m in Zone: East_Corridor_02.'}
+              ? `Zone: ${alert.zone_id} | Unauthorized after-hours access.`
+              : 'Unauthorized access attempt in restricted zone.'}
           </span>
         </div>
       </div>
     </div>
   )
 }
+
