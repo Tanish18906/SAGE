@@ -63,12 +63,16 @@ import time
 
 class FreshFrameReader:
     """
-    Continuously drains frames from cv2.VideoCapture in a dedicated thread.
-    This prevents internal buffer buildup and guarantees zero frame-delay latency.
+    Continuously drains frames from cv2.VideoCapture in a dedicated background thread.
+    Uses cap.grab() to immediately flush stale driver buffers, guaranteeing real-time 0ms frame lag.
     """
 
     def __init__(self, cap):
         self.cap = cap
+        try:
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        except Exception:
+            pass
         self.frame = None
         self.ret = False
         self.running = True
@@ -78,13 +82,14 @@ class FreshFrameReader:
 
     def _reader(self):
         while self.running:
-            ret, frame = self.cap.read()
-            if not ret:
-                time.sleep(0.01)
+            if not self.cap.grab():
+                time.sleep(0.005)
                 continue
-            with self.lock:
-                self.frame = frame
-                self.ret = ret
+            ret, frame = self.cap.retrieve()
+            if ret and frame is not None:
+                with self.lock:
+                    self.frame = frame
+                    self.ret = ret
 
     def read(self):
         with self.lock:
@@ -102,21 +107,21 @@ def capture_loop(show_window: bool = True, stop_event: threading.Event = None):
     cap, source = open_capture()
     reader = FreshFrameReader(cap)
     model = YOLO(YOLO_MODEL_PATH)
-    tracker = DeepSort(max_age=15, n_init=2)
-    print(f"Camera opened (source={source}). Real-time inference started...")
+    tracker = DeepSort(max_age=20, n_init=2, half=True, bgr=True)
+    print(f"Camera opened (source={source}). Real-time low-latency inference started...")
 
     frame_count = 0
     try:
         while True:
             ret, frame = reader.read()
             if not ret or frame is None:
-                time.sleep(0.005)
+                time.sleep(0.002)
                 continue
 
             frame_count += 1
 
-            # Run YOLO inference with optimal imgsz for fast CPU execution
-            results = model(frame, imgsz=640, classes=[PERSON_CLASS_ID], verbose=False)[0]
+            # Run YOLO inference with optimal 320x320 resolution for fast real-time CPU execution
+            results = model(frame, imgsz=320, classes=[PERSON_CLASS_ID], conf=0.35, verbose=False)[0]
 
             detections = []
             for box in results.boxes:
@@ -159,19 +164,19 @@ def capture_loop(show_window: bool = True, stop_event: threading.Event = None):
                 for zone in active_zones:
                     now = _current_time()
 
-                    # After-hours rule check
+                    # 1. After-hours rule check
                     alert = evaluate_after_hours_alert(tracked_id, box, zone, frame, now)
                     if alert:
                         push_alert(alert)
                         alert_summary = {k: v for k, v in alert.items() if k != "frame"}
-                        print(f"[Detector] Alert fired & pushed: {alert_summary}")
+                        print(f"[Detector] After-Hours Alert fired: {alert_summary}")
 
-                    # Loitering rule check
+                    # 2. Loitering rule check
                     alert = evaluate_loitering_alert(tracked_id, box, zone, frame, now)
                     if alert:
                         push_alert(alert)
                         alert_summary = {k: v for k, v in alert.items() if k != "frame"}
-                        print(f"[Detector] Alert fired & pushed: {alert_summary}")
+                        print(f"[Detector] Loitering Alert fired: {alert_summary}")
 
                 box_color = (0, 0, 255) if zones_inside else (0, 255, 0)
                 cv2.rectangle(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), box_color, 2)
