@@ -332,6 +332,7 @@ export default function LiveFeed({
               {detections.map((d) => {
                 if (!d.box) return null
                 const activeAlert = activeAlertByTrackedId.get(d.tracked_id)
+                const isInZone = Boolean(d.in_zone || activeAlert)
 
                 let boxBorder = 'border-emerald-400'
                 let boxBg = 'bg-emerald-500/15 shadow-[0_0_15px_rgba(16,185,129,0.35)]'
@@ -339,25 +340,20 @@ export default function LiveFeed({
                 let badgeText = 'text-black'
                 let label = `PERSON ID·${String(d.tracked_id).padStart(2, '0')}`
 
-                if (activeAlert) {
-                  if (activeAlert.alert_type === 'fall') {
-                    boxBorder = 'border-red animate-pulse'
-                    boxBg = 'bg-red/25 shadow-[0_0_20px_rgba(224,57,62,0.6)]'
-                    badgeBg = 'bg-red'
-                    badgeText = 'text-white'
-                    label = `FALL DETECTED · ID·${String(d.tracked_id).padStart(2, '0')}`
-                  } else if (activeAlert.alert_type === 'loitering') {
-                    boxBorder = 'border-cyan'
-                    boxBg = 'bg-cyan/20 shadow-[0_0_18px_rgba(34,196,224,0.5)]'
-                    badgeBg = 'bg-cyan'
-                    badgeText = 'text-black'
-                    label = `LOITERING · ID·${String(d.tracked_id).padStart(2, '0')}`
+                if (isInZone) {
+                  // Inside Restricted Polygon Zone -> BRIGHT RED ALARM BOX
+                  boxBorder = 'border-red-500 animate-pulse'
+                  boxBg = 'bg-red-500/25 shadow-[0_0_22px_rgba(239,68,68,0.75)]'
+                  badgeBg = 'bg-red-500'
+                  badgeText = 'text-white'
+                  const zoneTag = d.zone_name ? `[${d.zone_name.toUpperCase()}] ` : ''
+
+                  if (activeAlert?.alert_type === 'loitering') {
+                    label = `🚨 ${zoneTag}LOITERING · ID·${String(d.tracked_id).padStart(2, '0')}`
+                  } else if (activeAlert?.alert_type === 'fall') {
+                    label = `🚨 FALL DETECTED · ID·${String(d.tracked_id).padStart(2, '0')}`
                   } else {
-                    boxBorder = 'border-amber'
-                    boxBg = 'bg-amber/20 shadow-[0_0_18px_rgba(245,166,35,0.5)]'
-                    badgeBg = 'bg-amber'
-                    badgeText = 'text-black'
-                    label = `AFTER-HOURS · ID·${String(d.tracked_id).padStart(2, '0')}`
+                    label = `🚨 ${zoneTag}ZONE INTRUSION · ID·${String(d.tracked_id).padStart(2, '0')}`
                   }
                 }
 

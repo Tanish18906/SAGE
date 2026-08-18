@@ -193,7 +193,9 @@ def push_frame(frame: np.ndarray, detections: list = None):
                             "y": int(box.get("y", 0) * scale),
                             "width": int(box.get("width", 0) * scale),
                             "height": int(box.get("height", 0) * scale),
-                        }
+                        },
+                        "in_zone": d.get("in_zone", False),
+                        "zone_name": d.get("zone_name"),
                     })
             current_dets = scaled_dets
         else:

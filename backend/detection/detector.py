@@ -210,6 +210,15 @@ class HighSpeedDetector:
                 tracked_id = int(track.track_id)
                 box = track.to_ltrb()
 
+                # Check if person is inside any calibrated zone
+                in_any_zone = False
+                matched_zone_name = None
+                for zone in active_zones:
+                    if is_person_in_zone(box, zone.get("polygon", [])):
+                        in_any_zone = True
+                        matched_zone_name = zone.get("name") or zone.get("zone_id")
+                        break
+
                 contract_dets.append(
                     {
                         "tracked_id": tracked_id,
@@ -219,6 +228,8 @@ class HighSpeedDetector:
                             "width": int(box[2] - box[0]),
                             "height": int(box[3] - box[1]),
                         },
+                        "in_zone": in_any_zone,
+                        "zone_name": matched_zone_name,
                     }
                 )
 
