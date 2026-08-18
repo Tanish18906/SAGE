@@ -13,7 +13,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from backend.detection.rules import evaluate_after_hours_alert, is_person_in_zone
+from backend.detection.rules import evaluate_after_hours_alert, evaluate_loitering_alert, is_person_in_zone
 from backend.main import get_active_zones, push_alert, push_frame
 
 _ENV_PATH = _REPO_ROOT / "backend" / ".env"
@@ -157,7 +157,17 @@ def capture_loop(show_window: bool = True, stop_event: threading.Event = None):
                 ]
 
                 for zone in active_zones:
-                    alert = evaluate_after_hours_alert(tracked_id, box, zone, frame, _current_time())
+                    now = _current_time()
+
+                    # After-hours rule check
+                    alert = evaluate_after_hours_alert(tracked_id, box, zone, frame, now)
+                    if alert:
+                        push_alert(alert)
+                        alert_summary = {k: v for k, v in alert.items() if k != "frame"}
+                        print(f"[Detector] Alert fired & pushed: {alert_summary}")
+
+                    # Loitering rule check
+                    alert = evaluate_loitering_alert(tracked_id, box, zone, frame, now)
                     if alert:
                         push_alert(alert)
                         alert_summary = {k: v for k, v in alert.items() if k != "frame"}
