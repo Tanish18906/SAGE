@@ -10,7 +10,27 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('live') // 'live' | 'zones' | 'history'
   const [lastFrameBase64, setLastFrameBase64] = useState(null)
   const [alerts, setAlerts] = useState([])
+  const [zones, setZones] = useState([])
   const [connectionState, setConnectionState] = useState('connected')
+
+  // Fetch active zones from backend API
+  const fetchZones = useCallback(async () => {
+    try {
+      const res = await fetch('http://localhost:8000/api/zones')
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          setZones(data)
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load calibrated zones:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchZones()
+  }, [fetchZones])
 
   // Fetch past alerts from SQLite database on initial application load
   useEffect(() => {
@@ -73,6 +93,7 @@ export default function App() {
                 onAlertReceived={handleAlertReceived}
                 onConnectionChange={setConnectionState}
                 alerts={alerts}
+                zones={zones}
               />
             </section>
 
@@ -92,6 +113,8 @@ export default function App() {
             <ZoneEditor
               currentFrameBase64={lastFrameBase64}
               apiBaseUrl="http://localhost:8000"
+              onZoneSaved={fetchZones}
+              onZoneDeleted={fetchZones}
             />
           </div>
         )}

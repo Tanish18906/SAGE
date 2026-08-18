@@ -52,6 +52,7 @@ export default function ZoneEditor({
 }) {
   const canvasRef = useRef(null)
   const [capturedFrame, setCapturedFrame] = useState(null)
+  const [canvasDim, setCanvasDim] = useState({ width: 640, height: 480 })
   const [points, setPoints] = useState([])
   const [zoneName, setZoneName] = useState('')
   const [selectedRules, setSelectedRules] = useState(['after_hours'])
@@ -194,13 +195,16 @@ export default function ZoneEditor({
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     if (capturedFrame) {
       const img = new Image()
       img.onload = () => {
+        if (img.naturalWidth && img.naturalHeight) {
+          if (canvasDim.width !== img.naturalWidth || canvasDim.height !== img.naturalHeight) {
+            setCanvasDim({ width: img.naturalWidth, height: img.naturalHeight })
+          }
+        }
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         renderOverlays(ctx)
       }
@@ -208,6 +212,7 @@ export default function ZoneEditor({
         ? capturedFrame
         : `data:image/jpeg;base64,${capturedFrame}`
     } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
       ctx.fillStyle = '#0e0e10'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
       ctx.fillStyle = '#7a7a7d'
@@ -221,7 +226,7 @@ export default function ZoneEditor({
       ctx.textAlign = 'start'
       renderOverlays(ctx)
     }
-  }, [capturedFrame, renderOverlays])
+  }, [capturedFrame, renderOverlays, canvasDim])
 
   useEffect(() => {
     drawCanvas()
@@ -232,32 +237,33 @@ export default function ZoneEditor({
       setCapturedFrame(currentFrameBase64)
       setStatusMessage({ type: 'success', text: 'Live frame captured for zone calibration.' })
     } else {
-      // Create a test calibration canvas
+      // Create a test calibration canvas (640x480)
       const testCanvas = document.createElement('canvas')
-      testCanvas.width = 1280
-      testCanvas.height = 720
+      testCanvas.width = 640
+      testCanvas.height = 480
       const ctx = testCanvas.getContext('2d')
       ctx.fillStyle = '#0e0e10'
-      ctx.fillRect(0, 0, 1280, 720)
+      ctx.fillRect(0, 0, 640, 480)
       ctx.strokeStyle = '#232326'
       ctx.lineWidth = 1
-      for (let x = 0; x < 1280; x += 40) {
+      for (let x = 0; x < 640; x += 40) {
         ctx.beginPath()
         ctx.moveTo(x, 0)
-        ctx.lineTo(x, 720)
+        ctx.lineTo(x, 480)
         ctx.stroke()
       }
-      for (let y = 0; y < 720; y += 40) {
+      for (let y = 0; y < 480; y += 40) {
         ctx.beginPath()
         ctx.moveTo(0, y)
-        ctx.lineTo(1280, y)
+        ctx.lineTo(640, y)
         ctx.stroke()
       }
       ctx.fillStyle = '#7a7a7d'
       ctx.font = '14px "JetBrains Mono", monospace'
-      ctx.fillText('CALIBRATION GRID [1280x720] // READY FOR POLYGON PLOT', 24, 36)
+      ctx.fillText('CALIBRATION GRID [640x480] // READY FOR POLYGON PLOT', 24, 36)
       const b64 = testCanvas.toDataURL('image/jpeg').replace(/^data:image\/jpeg;base64,/, '')
       setCapturedFrame(b64)
+      setCanvasDim({ width: 640, height: 480 })
       setStatusMessage({ type: 'success', text: 'Calibration grid frame ready.' })
     }
   }
@@ -266,8 +272,8 @@ export default function ZoneEditor({
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
+    const scaleX = canvasDim.width / rect.width
+    const scaleY = canvasDim.height / rect.height
 
     const x = Math.round((e.clientX - rect.left) * scaleX)
     const y = Math.round((e.clientY - rect.top) * scaleY)
@@ -304,15 +310,18 @@ export default function ZoneEditor({
   const handleSaveZone = async (e) => {
     e.preventDefault()
     if (!zoneName.trim()) {
-      setStatusMessage({ type: 'error', text: 'Please enter a name for the zone.' })
+      setStatusMessage({ type: 'error', text: 'Please enter a name for the zone (e.g. "Booth_Front_Zone") in the text input.' })
       return
     }
     if (points.length < 3) {
-      setStatusMessage({ type: 'error', text: 'A zone polygon requires at least 3 points.' })
+      setStatusMessage({
+        type: 'error',
+        text: `A zone polygon requires at least 3 vertices. Please click on the camera frame canvas to plot your polygon (currently: ${points.length} points).`,
+      })
       return
     }
     if (selectedRules.length === 0) {
-      setStatusMessage({ type: 'error', text: 'Please select at least one rule for this zone.' })
+      setStatusMessage({ type: 'error', text: 'Please select at least one detection rule (After-Hours or Loitering).' })
       return
     }
 
@@ -451,8 +460,8 @@ export default function ZoneEditor({
           <div className="relative border border-hairline rounded overflow-hidden bg-recessed shadow-inner">
             <canvas
               ref={canvasRef}
-              width={1280}
-              height={720}
+              width={canvasDim.width}
+              height={canvasDim.height}
               onClick={handleCanvasClick}
               className="w-full h-auto cursor-crosshair block"
             />
@@ -615,12 +624,45 @@ export default function ZoneEditor({
                 </div>
               </div>
 
+              {/* Validation Readiness Checklist */}
+              <div className="bg-recessed border border-hairline rounded p-2.5 flex flex-col gap-1.5 text-[11px] font-sans">
+                <div className="flex items-center justify-between">
+                  <span className="text-text-secondary">1. Zone Name:</span>
+                  <span className={zoneName.trim() ? 'text-green font-mono font-semibold' : 'text-amber'}>
+                    {zoneName.trim() ? `✓ ${zoneName.trim()}` : 'Required'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-text-secondary">2. Polygon Vertices:</span>
+                  <span className={points.length >= 3 ? 'text-green font-mono font-semibold' : 'text-amber'}>
+                    {points.length >= 3 ? `✓ ${points.length} points` : `Plot on canvas (${points.length}/3)`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-text-secondary">3. Active Rules:</span>
+                  <span className={selectedRules.length > 0 ? 'text-green font-mono font-semibold' : 'text-amber'}>
+                    {selectedRules.length > 0 ? `✓ ${selectedRules.length} selected` : 'Select ≥ 1 rule'}
+                  </span>
+                </div>
+              </div>
+
               <button
                 type="submit"
-                disabled={loading || points.length < 3 || !zoneName.trim()}
-                className="w-full py-2 bg-text-primary hover:bg-white text-base disabled:opacity-40 font-sans font-bold text-xs uppercase tracking-wider rounded transition-colors shadow-lg cursor-pointer"
+                disabled={loading}
+                className={`w-full py-2.5 font-sans font-bold text-xs uppercase tracking-wider rounded transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer ${
+                  points.length >= 3 && zoneName.trim() && selectedRules.length > 0
+                    ? 'bg-amber text-black hover:bg-amber/90 active:scale-[0.99]'
+                    : 'bg-panel-highest border border-hairline-bright text-text-secondary hover:text-text-primary hover:border-amber/50'
+                }`}
               >
-                {loading ? 'Saving Polygon...' : 'Save Zone Polygon'}
+                {loading ? (
+                  <span>Saving Polygon...</span>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Save Zone Polygon</span>
+                  </>
+                )}
               </button>
             </form>
           </div>

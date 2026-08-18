@@ -1,77 +1,28 @@
 [
   {
     "zone_id": "gate",
-    "name": "gate",
+    "name": "GATE",
     "polygon": [
       [
-        456,
-        214
+        100,
+        80
       ],
       [
-        654,
-        212
+        1180,
+        80
       ],
       [
-        643,
-        624
+        1180,
+        680
       ],
       [
-        374,
-        612
+        100,
+        680
       ]
     ],
     "rules": [
-      "after_hours"
-    ]
-  },
-  {
-    "zone_id": "chemistry_lab_entrance",
-    "name": "Chemistry Lab Entrance",
-    "polygon": [
-      [
-        50,
-        50
-      ],
-      [
-        250,
-        50
-      ],
-      [
-        250,
-        300
-      ],
-      [
-        50,
-        300
-      ]
-    ],
-    "rules": [
-      "after_hours"
-    ]
-  },
-  {
-    "zone_id": "chemistry_lab_entrance_1",
-    "name": "Chemistry Lab Entrance",
-    "polygon": [
-      [
-        50,
-        50
-      ],
-      [
-        250,
-        50
-      ],
-      [
-        250,
-        300
-      ],
-      [
-        50,
-        300
-      ]
-    ],
-    "rules": [
-      "after_hours"
+      "after_hours",
+      "loitering"
     ]
   }
 ]

@@ -24,6 +24,8 @@
   --color-red-dim: #7a2023;
   --color-green: #3ecf8e;
   --color-green-dim: #1f6b49;
+  --color-cyan: #22c4e0;
+  --color-cyan-dim: #0e5f6e;
 
   /* Display: tight, technical geometric sans — headings, nav, section titles only */
   --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;

@@ -58,6 +58,7 @@ export default function LiveFeed({
   onAlertReceived = null,
   onConnectionChange = null,
   alerts = [],
+  zones = [],
 }) {
   const [currentFrame, setCurrentFrame] = useState(null)
   const [detections, setDetections] = useState([])
@@ -285,6 +286,53 @@ export default function LiveFeed({
             </>
           )}
 
+          {/* Calibrated Restricted Zone Polygons Overlay */}
+          {showOverlays && scale > 0 && imageSrc && connectionStatus !== 'camera_disconnected' && zones && zones.length > 0 && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              viewBox={`0 0 ${frameSize.width} ${frameSize.height}`}
+              preserveAspectRatio="none"
+            >
+              {zones.map((zone) => {
+                if (!zone.polygon || zone.polygon.length < 3) return null
+                const pointsStr = zone.polygon.map(([x, y]) => `${x},${y}`).join(' ')
+                const firstPt = zone.polygon[0]
+                const isLoitering = zone.rules?.includes('loitering')
+                const strokeColor = isLoitering ? '#22c4e0' : '#f5a623'
+                const fillColor = isLoitering ? 'rgba(34, 196, 224, 0.18)' : 'rgba(245, 166, 35, 0.18)'
+
+                return (
+                  <g key={zone.zone_id}>
+                    {/* Shaded polygon zone */}
+                    <polygon
+                      points={pointsStr}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth="2.5"
+                      strokeDasharray="6,4"
+                    />
+                    {/* Vertex point markers */}
+                    {zone.polygon.map(([px, py], i) => (
+                      <circle key={i} cx={px} cy={py} r="4" fill={strokeColor} stroke="#0a0a0c" strokeWidth="1.5" />
+                    ))}
+                    {/* Zone Name Label */}
+                    <text
+                      x={firstPt[0] + 6}
+                      y={Math.max(16, firstPt[1] - 8)}
+                      fill={strokeColor}
+                      fontSize="13"
+                      fontWeight="bold"
+                      fontFamily="'JetBrains Mono', monospace"
+                      filter="drop-shadow(0px 1px 3px rgba(0,0,0,0.9))"
+                    >
+                      {zone.name || zone.zone_id}
+                    </text>
+                  </g>
+                )
+              })}
+            </svg>
+          )}
+
           {/* Tracking Reticles — the signature element */}
           {showOverlays && scale > 0 && imageSrc && connectionStatus !== 'camera_disconnected' && (
             <>
@@ -294,6 +342,8 @@ export default function LiveFeed({
                 const colorClass = activeAlert
                   ? activeAlert.alert_type === 'fall'
                     ? 'text-red'
+                    : activeAlert.alert_type === 'loitering'
+                    ? 'text-cyan'
                     : 'text-amber'
                   : 'text-text-primary/80'
                 const label = activeAlert

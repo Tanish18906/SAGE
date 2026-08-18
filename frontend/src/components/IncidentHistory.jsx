@@ -4,6 +4,7 @@ import {
   RefreshCw,
   Filter,
   Clock,
+  Timer,
   UserCheck,
   AlertOctagon,
   FileText,
@@ -147,14 +148,15 @@ export default function IncidentHistory({
                           <AlertOctagon className="w-3 h-3 text-red" />
                           CRITICAL // FALL
                         </span>
+                      ) : item.alert_type === 'loitering' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs text-[10px] font-sans font-semibold bg-cyan/10 text-cyan border border-cyan/30">
+                          <Timer className="w-3 h-3 text-cyan" />
+                          WARNING // LOITERING
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs text-[10px] font-sans font-semibold bg-amber/15 text-amber border border-amber/30">
-                          {isAfterHours ? (
-                            <Clock className="w-3 h-3 text-amber" />
-                          ) : (
-                            <UserCheck className="w-3 h-3 text-amber" />
-                          )}
-                          WARNING // {isAfterHours ? 'AFTER_HOURS' : 'LOITERING'}
+                          <Clock className="w-3 h-3 text-amber" />
+                          WARNING // AFTER_HOURS
                         </span>
                       )}
                     </td>

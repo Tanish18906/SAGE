@@ -1,6 +1,10 @@
 from datetime import datetime, time, timedelta, timezone
 
-import cv2
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
 import numpy as np
 
 
@@ -9,15 +13,50 @@ def is_person_in_zone(box, polygon):
     box: (left, top, right, bottom) — a tracked person's bounding box.
     polygon: [[x, y], ...] — a saved zone polygon.
 
-    Uses the box's bottom-center (feet) point as the person's ground position,
-    and cv2.pointPolygonTest to check if that point falls inside the polygon.
+    Evaluates key anatomical anchors (feet, torso center, head, and waist edges)
+    against the zone polygon so that standing, seated, or upper-body camera angles
+    reliably trigger alerts.
     """
-    left, top, right, bottom = box
-    foot_point = ((left + right) / 2, bottom)
+    if not polygon or len(polygon) < 3:
+        return False
 
-    polygon_np = np.array(polygon, dtype=np.int32)
-    result = cv2.pointPolygonTest(polygon_np, foot_point, False)
-    return result >= 0
+    left, top, right, bottom = box
+    cx = (left + right) / 2.0
+    cy = (top + bottom) / 2.0
+
+    test_points = [
+        (cx, bottom),        # Feet / ground position
+        (cx, cy),            # Torso / center mass
+        (cx, top),           # Head
+        (left, cy),          # Left body edge
+        (right, cy),         # Right body edge
+    ]
+
+    if cv2 is not None:
+        polygon_np = np.array(polygon, dtype=np.int32)
+        for px, py in test_points:
+            if cv2.pointPolygonTest(polygon_np, (float(px), float(py)), False) >= 0:
+                return True
+        return False
+
+    # Pure Python / NumPy ray-casting fallback across all test points
+    n = len(polygon)
+    for px, py in test_points:
+        inside = False
+        p1x, p1y = polygon[0]
+        for i in range(n + 1):
+            p2x, p2y = polygon[i % n]
+            if py > min(p1y, p2y):
+                if py <= max(p1y, p2y):
+                    if px <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xinters = (py - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or px <= xinters:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+        if inside:
+            return True
+    return False
 
 
 # Restricted window spans midnight: 21:00 (9 PM) through 06:00 (6 AM) the next day.
@@ -76,6 +115,117 @@ def evaluate_after_hours_alert(tracked_id, box, zone, frame, current_time=None):
 
     return {
         "alert_type": "after_hours",
+        "zone_id": zone["zone_id"],
+        "tracked_id": int(tracked_id),
+        "timestamp": current_time.isoformat(),
+        "frame": frame.copy(),
+    }
+
+
+# --- Loitering Detection State & Logic (Phase 2) ---
+LOITERING_THRESHOLD_SECONDS = 10  # Configurable dwell threshold in seconds
+LOITERING_GRACE_PERIOD_SECONDS = 2.0  # Tolerated tracking gap before resetting dwell timer
+LOITERING_COOLDOWN_SECONDS = 60   # Minimum time between repeated loitering alerts for the same (tracked_id, zone_id)
+
+_loitering_entry_times = {}  # (tracked_id, zone_id) -> datetime
+_loitering_last_seen = {}    # (tracked_id, zone_id) -> datetime
+_loitering_last_alert_at = {}  # (tracked_id, zone_id) -> datetime
+
+
+def reset_loitering_state():
+    """Resets in-memory loitering timer and alert state."""
+    _loitering_entry_times.clear()
+    _loitering_last_seen.clear()
+    _loitering_last_alert_at.clear()
+
+
+def update_loitering_timer(tracked_id, zone, is_inside, current_time=None):
+    """
+    Updates and returns the elapsed loitering time (in seconds) for a given tracked person in a zone.
+    - If inside and zone has 'loitering' rule: accumulates time from first entry and updates last_seen.
+    - If outside or missing: tolerates brief gaps up to LOITERING_GRACE_PERIOD_SECONDS without resetting.
+      Once gap exceeds the grace period, resets the dwell timer to 0.0.
+    - If zone lacks 'loitering' rule: clears timers and returns 0.0.
+    """
+    if "loitering" not in zone.get("rules", []):
+        key = (tracked_id, zone.get("zone_id"))
+        _loitering_entry_times.pop(key, None)
+        _loitering_last_seen.pop(key, None)
+        return 0.0
+
+    if current_time is None:
+        current_time = datetime.now(timezone.utc)
+
+    key = (tracked_id, zone["zone_id"])
+
+    if is_inside:
+        _loitering_last_seen[key] = current_time
+        if key not in _loitering_entry_times:
+            _loitering_entry_times[key] = current_time
+            return 0.0
+        elapsed = (current_time - _loitering_entry_times[key]).total_seconds()
+        return max(0.0, elapsed)
+    else:
+        if key in _loitering_entry_times and key in _loitering_last_seen:
+            gap = (current_time - _loitering_last_seen[key]).total_seconds()
+            if gap <= LOITERING_GRACE_PERIOD_SECONDS:
+                # Brief tracking gap: maintain accumulated dwell time without reset
+                elapsed = (_loitering_last_seen[key] - _loitering_entry_times[key]).total_seconds()
+                return max(0.0, elapsed)
+
+        # Gap exceeded grace period or not previously tracked: confirmed exit
+        _loitering_entry_times.pop(key, None)
+        _loitering_last_seen.pop(key, None)
+        return 0.0
+
+
+def get_loitering_elapsed_time(tracked_id, zone_id, current_time=None):
+    """Returns elapsed in-zone time in seconds, or 0.0 if not currently in-zone."""
+    key = (tracked_id, zone_id)
+    if key not in _loitering_entry_times:
+        return 0.0
+    if current_time is None:
+        current_time = datetime.now(timezone.utc)
+    if key in _loitering_last_seen:
+        gap = (current_time - _loitering_last_seen[key]).total_seconds()
+        if gap > LOITERING_GRACE_PERIOD_SECONDS:
+            return 0.0
+    return max(0.0, (current_time - _loitering_entry_times[key]).total_seconds())
+
+
+def evaluate_loitering_alert(tracked_id, box, zone, frame, current_time=None):
+    """
+    Evaluates whether a loitering alert should fire for this tracked person in this zone.
+
+    Returns the internal Alert dict (per Docs/Backend_Split.md section 3) if:
+      1. The zone has the 'loitering' rule.
+      2. The person's feet are inside the zone.
+      3. The accumulated dwell time exceeds LOITERING_THRESHOLD_SECONDS.
+      4. The cooldown since the last loitering alert for this (tracked_id, zone_id) has expired.
+
+    Otherwise returns None. The dwell timer state is always updated on each call.
+    """
+    if "loitering" not in zone.get("rules", []):
+        return None
+
+    if current_time is None:
+        current_time = datetime.now(timezone.utc)
+
+    is_inside = is_person_in_zone(box, zone["polygon"])
+    elapsed = update_loitering_timer(tracked_id, zone, is_inside, current_time)
+
+    if not is_inside or elapsed < LOITERING_THRESHOLD_SECONDS:
+        return None
+
+    key = (tracked_id, zone["zone_id"])
+    last_alert = _loitering_last_alert_at.get(key)
+    if last_alert is not None and (current_time - last_alert).total_seconds() < LOITERING_COOLDOWN_SECONDS:
+        return None
+
+    _loitering_last_alert_at[key] = current_time
+
+    return {
+        "alert_type": "loitering",
         "zone_id": zone["zone_id"],
         "tracked_id": int(tracked_id),
         "timestamp": current_time.isoformat(),
@@ -183,3 +333,169 @@ if __name__ == "__main__":
     alert_all_passed &= p
 
     print(f"\nAll after-hours alert tests passed: {alert_all_passed}")
+
+    # --- loitering timer tests (Phase 2 Step 1) ---
+    print("\n--- update_loitering_timer ---")
+    reset_loitering_state()
+
+    zone_loiter = {"zone_id": "hostel_gate", "polygon": zone_polygon, "rules": ["loitering"]}
+    zone_no_loiter = {"zone_id": "other_zone", "polygon": zone_polygon, "rules": ["after_hours"]}
+
+    t0 = datetime(2026, 8, 19, 14, 0, 0, tzinfo=timezone.utc)
+    t_plus_5 = t0 + timedelta(seconds=5)
+    t_plus_12 = t0 + timedelta(seconds=12)
+    t_plus_15 = t0 + timedelta(seconds=15)
+
+    loiter_all_passed = True
+
+    # 1. Person 1 enters loitering zone at t0
+    elapsed = update_loitering_timer(1, zone_loiter, is_inside=True, current_time=t0)
+    p = (elapsed == 0.0)
+    loiter_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Person 1 enters at t0 -> elapsed={elapsed}s (expected=0.0s)")
+
+    # 2. Person 1 remains in zone at t+5s
+    elapsed = update_loitering_timer(1, zone_loiter, is_inside=True, current_time=t_plus_5)
+    p = (elapsed == 5.0)
+    loiter_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Person 1 still inside at t+5s -> elapsed={elapsed}s (expected=5.0s)")
+
+    # 3. Person 1 remains in zone at t+12s
+    elapsed = update_loitering_timer(1, zone_loiter, is_inside=True, current_time=t_plus_12)
+    p = (elapsed == 12.0)
+    loiter_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Person 1 still inside at t+12s -> elapsed={elapsed}s (expected=12.0s)")
+
+    # 4. Person 2 enters at t+5s (independent tracking)
+    elapsed_p2 = update_loitering_timer(2, zone_loiter, is_inside=True, current_time=t_plus_5)
+    p = (elapsed_p2 == 0.0)
+    loiter_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Person 2 enters at t+5s -> elapsed={elapsed_p2}s (expected=0.0s)")
+
+    # 5. Person 1 leaves zone at t+15s -> timer resets to 0
+    elapsed = update_loitering_timer(1, zone_loiter, is_inside=False, current_time=t_plus_15)
+    p = (elapsed == 0.0)
+    loiter_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Person 1 leaves at t+15s -> elapsed={elapsed}s (expected=0.0s)")
+
+    # 6. Check get_loitering_elapsed_time for Person 1 (should be 0.0) and Person 2 (seen at t+15s, should be 10.0)
+    update_loitering_timer(2, zone_loiter, is_inside=True, current_time=t_plus_15)
+    p1_time = get_loitering_elapsed_time(1, "hostel_gate", current_time=t_plus_15)
+    p2_time = get_loitering_elapsed_time(2, "hostel_gate", current_time=t_plus_15)
+    p = (p1_time == 0.0 and p2_time == 10.0)
+    loiter_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] In-zone query at t+15s -> Person 1={p1_time}s (exp=0.0s), Person 2={p2_time}s (exp=10.0s)")
+
+    # 7. Zone without loitering rule returns 0
+    elapsed_no_rule = update_loitering_timer(3, zone_no_loiter, is_inside=True, current_time=t0)
+    p = (elapsed_no_rule == 0.0)
+    loiter_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Zone without 'loitering' rule -> elapsed={elapsed_no_rule}s (expected=0.0s)")
+
+    print(f"\nAll loitering timer tests passed: {loiter_all_passed}")
+
+    # --- confirmation window / tracking jitter tests (Phase 2 Step 2) ---
+    print("\n--- loitering confirmation window & tracking gap tolerance ---")
+    reset_loitering_state()
+
+    gap_all_passed = True
+    t_start = datetime(2026, 8, 19, 15, 0, 0, tzinfo=timezone.utc)
+
+    # 1. Person enters at t_start -> elapsed=0.0s
+    update_loitering_timer(10, zone_loiter, is_inside=True, current_time=t_start)
+
+    # 2. Person inside at t_start + 6.0s -> elapsed=6.0s
+    t_6s = t_start + timedelta(seconds=6.0)
+    elapsed = update_loitering_timer(10, zone_loiter, is_inside=True, current_time=t_6s)
+    p = (elapsed == 6.0)
+    gap_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Person 10 inside at t+6s -> elapsed={elapsed}s (expected=6.0s)")
+
+    # 3. Simulated brief tracking gap: missing/outside for 1.0s (less than 2.0s grace period)
+    t_gap_1s = t_6s + timedelta(seconds=1.0)
+    elapsed = update_loitering_timer(10, zone_loiter, is_inside=False, current_time=t_gap_1s)
+    p = (elapsed == 6.0)  # Maintained without reset
+    gap_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Brief gap (1.0s <= 2.0s grace) -> timer NOT reset, elapsed={elapsed}s (expected=6.0s)")
+
+    # 4. Person redetected inside at t+8.0s -> continues accumulating seamlessly
+    t_8s = t_start + timedelta(seconds=8.0)
+    elapsed = update_loitering_timer(10, zone_loiter, is_inside=True, current_time=t_8s)
+    p = (elapsed == 8.0)
+    gap_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Person 10 redetected at t+8s -> elapsed={elapsed}s (expected=8.0s)")
+
+    # 5. Confirmed exit: person missing/outside for 3.5s (exceeds 2.0s grace period)
+    t_exit = t_8s + timedelta(seconds=3.5)
+    elapsed = update_loitering_timer(10, zone_loiter, is_inside=False, current_time=t_exit)
+    p = (elapsed == 0.0)  # Successfully reset
+    gap_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Confirmed exit (gap 3.5s > 2.0s grace) -> timer RESET, elapsed={elapsed}s (expected=0.0s)")
+
+    # 6. Person re-enters after leaving -> starts from 0.0s
+    t_reentry = t_exit + timedelta(seconds=5.0)
+    elapsed = update_loitering_timer(10, zone_loiter, is_inside=True, current_time=t_reentry)
+    p = (elapsed == 0.0)
+    gap_all_passed &= p
+    print(f"[{'PASS' if p else 'FAIL'}] Person 10 re-enters at t+16.5s -> starts new timer from {elapsed}s (expected=0.0s)")
+
+    print(f"\nAll confirmation window / gap tolerance tests passed: {gap_all_passed}")
+
+    # --- evaluate_loitering_alert tests (Phase 2 Step 3) ---
+    print("\n--- evaluate_loitering_alert ---")
+    reset_loitering_state()
+
+    dummy_frame = np.zeros((10, 10, 3), dtype=np.uint8)
+    box_inside = (150, 150, 250, 350)   # foot at (200, 350) -> inside polygon
+    box_outside = (400, 150, 500, 350)  # foot at (450, 350) -> outside polygon
+
+    zone_loiter2 = {"zone_id": "corridor_01", "polygon": zone_polygon, "rules": ["loitering"]}
+    zone_no_loiter2 = {"zone_id": "no_rule_zone", "polygon": zone_polygon, "rules": ["after_hours"]}
+
+    ta = datetime(2026, 8, 20, 10, 0, 0, tzinfo=timezone.utc)
+    la_all_passed = True
+
+    def check_loiter_alert(label, tid, box, zone, t, expect):
+        alert = evaluate_loitering_alert(tid, box, zone, dummy_frame, t)
+        got = alert is not None
+        ok = got == expect
+        print(f"[{'PASS' if ok else 'FAIL'}] {label} -> alert_fired={got} (expected={expect})")
+        return alert, ok
+
+    # 1. Below threshold: no alert
+    _, p = check_loiter_alert("Person 20 inside at t+0s (0s dwell < 10s threshold)", 20, box_inside, zone_loiter2, ta, False)
+    la_all_passed &= p
+
+    # 2. Still below threshold at 5s
+    ta_5 = ta + timedelta(seconds=5)
+    _, p = check_loiter_alert("Person 20 inside at t+5s (5s dwell < 10s threshold)", 20, box_inside, zone_loiter2, ta_5, False)
+    la_all_passed &= p
+
+    # 3. Crosses threshold at 11s -> alert fires
+    ta_11 = ta + timedelta(seconds=11)
+    alert, p = check_loiter_alert("Person 20 inside at t+11s (11s dwell >= 10s threshold) -> FIRES", 20, box_inside, zone_loiter2, ta_11, True)
+    la_all_passed &= p
+    if alert:
+        print(f"       Alert: { {k: v for k, v in alert.items() if k != 'frame'} }")
+
+    # 4. Immediate repeat within cooldown -> suppressed
+    _, p = check_loiter_alert("Immediate repeat within cooldown -> suppressed", 20, box_inside, zone_loiter2, ta_11, False)
+    la_all_passed &= p
+
+    # 5. Person outside zone -> no alert even past threshold
+    _, p = check_loiter_alert("Person 21 outside zone at t+20s -> no alert", 21, box_outside, zone_loiter2, ta + timedelta(seconds=20), False)
+    la_all_passed &= p
+
+    # 6. Zone without loitering rule -> no alert
+    _, p = check_loiter_alert("Zone without 'loitering' rule -> no alert", 22, box_inside, zone_no_loiter2, ta_11, False)
+    la_all_passed &= p
+
+    # 7. After cooldown expires, alert fires again for person 20
+    ta_cooldown = ta_11 + timedelta(seconds=LOITERING_COOLDOWN_SECONDS + 1)
+    alert, p = check_loiter_alert("After cooldown expires -> alert fires again", 20, box_inside, zone_loiter2, ta_cooldown, True)
+    la_all_passed &= p
+    if alert:
+        print(f"       Alert: { {k: v for k, v in alert.items() if k != 'frame'} }")
+
+    print(f"\nAll loitering alert tests passed: {la_all_passed}")
+
