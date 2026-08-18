@@ -1,12 +1,24 @@
 [
   {
-    "zone_id": "monitored_zone",
-    "name": "HOSTEL MONITORED ZONE",
+    "zone_id": "gate",
+    "name": "GATE",
     "polygon": [
-      [50, 40],
-      [1230, 40],
-      [1230, 700],
-      [50, 700]
+      [
+        100,
+        80
+      ],
+      [
+        1180,
+        80
+      ],
+      [
+        1180,
+        680
+      ],
+      [
+        100,
+        680
+      ]
     ],
     "rules": [
       "after_hours",
