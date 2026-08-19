@@ -110,39 +110,34 @@ class FreshFrameGrabber:
         self.thread.start()
 
     def _reader(self):
-        consecutive_failures = 0
         while self.running:
             try:
                 if not self.cap.grab():
-                    consecutive_failures += 1
-                    if consecutive_failures > 40:
+                    if time.time() - self.last_frame_time > 3.5:
                         self.is_connected = False
                         break
-                    time.sleep(0.005)
+                    time.sleep(0.01)
                     continue
                 ret, frame = self.cap.retrieve()
                 if ret and frame is not None:
-                    consecutive_failures = 0
                     with self.lock:
                         self.latest_frame = frame
                         self.last_frame_id += 1
                         self.last_frame_time = time.time()
                 else:
-                    consecutive_failures += 1
-                    if consecutive_failures > 40:
+                    if time.time() - self.last_frame_time > 3.5:
                         self.is_connected = False
                         break
-                    time.sleep(0.005)
+                    time.sleep(0.01)
             except Exception:
-                consecutive_failures += 1
-                if consecutive_failures > 40:
+                if time.time() - self.last_frame_time > 3.5:
                     self.is_connected = False
                     break
-                time.sleep(0.01)
+                time.sleep(0.02)
         self.is_connected = False
 
     def read(self):
-        if not self.is_connected or (time.time() - self.last_frame_time > 2.0):
+        if not self.is_connected or (time.time() - self.last_frame_time > 3.5):
             return False, None
         with self.lock:
             if self.latest_frame is not None:
