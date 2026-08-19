@@ -174,9 +174,9 @@ class HighSpeedDetector:
                 time.sleep(0.005)
                 continue
 
-            # Run YOLO with lightweight 256x256 resolution for ultra-fast execution (< 50ms)
+            # Run YOLO with balanced 384x384 resolution for high accuracy + speed
             results = self.model(
-                frame_to_process, imgsz=256, classes=[PERSON_CLASS_ID], conf=0.25, verbose=False
+                frame_to_process, imgsz=384, classes=[PERSON_CLASS_ID], conf=0.20, verbose=False
             )[0]
 
             detections = []

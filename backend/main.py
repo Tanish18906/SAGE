@@ -201,7 +201,7 @@ def push_frame(frame: np.ndarray, detections: list = None):
         else:
             stream_frame = frame
             current_dets = detections or []
-        _, buffer = cv2.imencode(".jpg", stream_frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
+        _, buffer = cv2.imencode(".jpg", stream_frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
         b64 = base64.b64encode(buffer).decode("utf-8")
         _latest_frame_state["image_base64"] = b64
         _latest_frame_state["detections"] = current_dets
@@ -245,14 +245,14 @@ def process_alert(alert_dict: dict) -> dict:
     raw_frame = alert_dict.get("frame")
     snapshot_b64 = None
     if raw_frame is not None and isinstance(raw_frame, np.ndarray):
-        cv2.imwrite(str(snapshot_path), raw_frame)
+        cv2.imwrite(str(snapshot_path), raw_frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
         h, w = raw_frame.shape[:2]
-        if w > 480:
-            scale = 480.0 / w
-            preview_frame = cv2.resize(raw_frame, (480, int(h * scale)), interpolation=cv2.INTER_LINEAR)
+        if w > 640:
+            scale = 640.0 / w
+            preview_frame = cv2.resize(raw_frame, (640, int(h * scale)), interpolation=cv2.INTER_LINEAR)
         else:
             preview_frame = raw_frame
-        _, buf = cv2.imencode(".jpg", preview_frame, [cv2.IMWRITE_JPEG_QUALITY, 55])
+        _, buf = cv2.imencode(".jpg", preview_frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
         snapshot_b64 = f"data:image/jpeg;base64,{base64.b64encode(buf).decode('utf-8')}"
     else:
         dummy = np.zeros((480, 640, 3), dtype=np.uint8)
