@@ -13,32 +13,50 @@ def is_person_in_zone(box, polygon):
     box: (left, top, right, bottom) — a tracked person's bounding box.
     polygon: [[x, y], ...] — a saved zone polygon.
 
-    Evaluates key anatomical anchors (feet, torso center, head, and waist edges)
-    against the zone polygon so that standing, seated, or upper-body camera angles
-    reliably trigger alerts.
+    Evaluates key anatomical anchors (feet, torso center, head, waist, knees)
+    against the zone polygon with coordinate auto-scaling and proximity tolerance.
     """
     if not polygon or len(polygon) < 3:
         return False
 
     left, top, right, bottom = box
+
+    # Robust coordinate scale normalization between raw HD frame (1280x720) and stream canvas (640x360)
+    poly_max_x = max(p[0] for p in polygon)
+    box_max_x = max(left, right)
+
+    if box_max_x > 750 and poly_max_x <= 660:
+        # Box is in 1280 space, polygon is in 640 space
+        scale = 640.0 / 1280.0
+        left, top, right, bottom = left * scale, top * scale, right * scale, bottom * scale
+    elif poly_max_x > 750 and box_max_x <= 660:
+        # Polygon is in 1280 space, box is in 640 space
+        scale = 640.0 / 1280.0
+        polygon = [[p[0] * scale, p[1] * scale] for p in polygon]
+
     cx = (left + right) / 2.0
     cy = (top + bottom) / 2.0
+    w = max(1.0, right - left)
+    h = max(1.0, bottom - top)
 
+    # Key anatomical anchors covering the body profile
     test_points = [
-        (cx, bottom),        # Feet / ground position
-        (cx, cy),            # Torso / center mass
-        (cx, top),           # Head
-        (left, cy),          # Left body edge
-        (right, cy),         # Right body edge
-        (left, bottom),      # Left foot
-        (right, bottom),     # Right foot
+        (cx, bottom),                    # Feet / ground position (primary)
+        (cx, cy),                        # Torso / center mass
+        (cx, top + 0.15 * h),            # Head / shoulders
+        (left + 0.2 * w, bottom),        # Left foot
+        (right - 0.2 * w, bottom),       # Right foot
+        (left, cy),                      # Left hip/waist
+        (right, cy),                     # Right hip/waist
+        (cx, bottom - 0.25 * h),         # Knees/legs
+        (cx, top),                       # Head top
     ]
 
     if cv2 is not None:
         polygon_np = np.array(polygon, dtype=np.int32)
         for px, py in test_points:
-            # Distance >= -20px provides instant responsive trigger as person approaches/touches zone
-            if cv2.pointPolygonTest(polygon_np, (float(px), float(py)), True) >= -20.0:
+            # pointPolygonTest >= -8.0 ensures instant trigger on zone touch/entry
+            if cv2.pointPolygonTest(polygon_np, (float(px), float(py)), True) >= -8.0:
                 return True
         return False
 

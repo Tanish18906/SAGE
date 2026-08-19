@@ -225,6 +225,9 @@ class HighSpeedDetector:
             tracks = self.tracker.update_tracks(detections, frame=frame_to_process)
             active_zones = get_active_zones()
 
+            fh, fw = frame_to_process.shape[:2]
+            scale = 640.0 / fw if fw > 640 else 1.0
+
             contract_dets = []
             now = _current_time()
 
@@ -235,11 +238,19 @@ class HighSpeedDetector:
                 tracked_id = int(track.track_id)
                 box = track.to_ltrb()
 
+                # Scale box to match the 640x360 stream and calibrated zone coordinate space
+                eval_box = (
+                    box[0] * scale,
+                    box[1] * scale,
+                    box[2] * scale,
+                    box[3] * scale,
+                )
+
                 # Check if person is inside any calibrated zone
                 in_any_zone = False
                 matched_zone_name = None
                 for zone in active_zones:
-                    if is_person_in_zone(box, zone.get("polygon", [])):
+                    if is_person_in_zone(eval_box, zone.get("polygon", [])):
                         in_any_zone = True
                         matched_zone_name = zone.get("name") or zone.get("zone_id")
                         break
@@ -260,14 +271,14 @@ class HighSpeedDetector:
 
                 for zone in active_zones:
                     # 1. Check After-Hours rule
-                    alert = evaluate_after_hours_alert(tracked_id, box, zone, frame_to_process, now)
+                    alert = evaluate_after_hours_alert(tracked_id, eval_box, zone, frame_to_process, now)
                     if alert:
                         push_alert(alert)
                         summary = {k: v for k, v in alert.items() if k != "frame"}
                         print(f"[Detector] After-Hours Alert fired: {summary}")
 
                     # 2. Check Loitering rule
-                    alert = evaluate_loitering_alert(tracked_id, box, zone, frame_to_process, now)
+                    alert = evaluate_loitering_alert(tracked_id, eval_box, zone, frame_to_process, now)
                     if alert:
                         push_alert(alert)
                         summary = {k: v for k, v in alert.items() if k != "frame"}
