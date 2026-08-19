@@ -97,29 +97,53 @@ import math
 
 
 class FreshFrameGrabber:
-    """Dedicated background reader that continuously flushes socket buffers for true 0ms video lag."""
+    """Dedicated background reader that continuously flushes socket buffers for true 0ms video lag with auto-reconnection on drop."""
     def __init__(self, cap):
         self.cap = cap
         self.lock = threading.Lock()
         self.latest_frame = None
+        self.last_frame_id = 0
+        self.last_frame_time = time.time()
         self.running = True
+        self.is_connected = True
         self.thread = threading.Thread(target=self._reader, daemon=True, name="FreshFrameGrabber")
         self.thread.start()
 
     def _reader(self):
+        consecutive_failures = 0
         while self.running:
             try:
                 if not self.cap.grab():
-                    time.sleep(0.002)
+                    consecutive_failures += 1
+                    if consecutive_failures > 40:
+                        self.is_connected = False
+                        break
+                    time.sleep(0.005)
                     continue
                 ret, frame = self.cap.retrieve()
                 if ret and frame is not None:
+                    consecutive_failures = 0
                     with self.lock:
                         self.latest_frame = frame
+                        self.last_frame_id += 1
+                        self.last_frame_time = time.time()
+                else:
+                    consecutive_failures += 1
+                    if consecutive_failures > 40:
+                        self.is_connected = False
+                        break
+                    time.sleep(0.005)
             except Exception:
-                time.sleep(0.005)
+                consecutive_failures += 1
+                if consecutive_failures > 40:
+                    self.is_connected = False
+                    break
+                time.sleep(0.01)
+        self.is_connected = False
 
     def read(self):
+        if not self.is_connected or (time.time() - self.last_frame_time > 2.0):
+            return False, None
         with self.lock:
             if self.latest_frame is not None:
                 return True, self.latest_frame
@@ -127,6 +151,7 @@ class FreshFrameGrabber:
 
     def release(self):
         self.running = False
+        self.is_connected = False
         try:
             self.cap.release()
         except Exception:
@@ -260,6 +285,7 @@ class HighSpeedDetector:
         )
         infer_thread.start()
 
+        consecutive_read_failures = 0
         try:
             while self.running and not self.stop_event.is_set():
                 ret, frame = self.cap.read()
@@ -271,9 +297,14 @@ class HighSpeedDetector:
                             time.sleep(0.01)
                             continue
                     else:
-                        time.sleep(0.005)
+                        consecutive_read_failures += 1
+                        if consecutive_read_failures > 50:  # ~1.0s of continuous failures
+                            print("[Detector] Camera stream disconnected or timed out. Reconnecting...")
+                            break
+                        time.sleep(0.02)
                         continue
 
+                consecutive_read_failures = 0
                 with self.lock:
                     self.latest_frame = frame
                     current_dets = list(self.latest_detections)
